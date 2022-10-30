@@ -1,0 +1,1 @@
+xcopy /S /E /Y "\\192.168.200.251\Apache Software Foundation\Apache2.2\htdocs\arquivos\comissao\*.*" "C:\xampp\htdocs\comissao\"

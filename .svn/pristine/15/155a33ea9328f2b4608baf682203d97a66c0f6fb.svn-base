@@ -1,0 +1,267 @@
+<!--jquery countTo-->
+<script src="<?= base_url('bower_components/countTo/jquery.countTo.js'); ?>"></script>
+<!--<script src="https://www.gstatic.com/charts/loader.js"></script>-->
+<script src="<?= base_url('bower_components/graficos_google/loader.js'); ?>"></script>
+<script type="text/javascript">    
+    function marketing() {
+        var request = $.ajax({
+            url: "<?= base_url('getByIdClientMarketing'); ?>",
+            method: "POST",
+            data: { 
+                codeClient: '', 
+                codigo: '',
+                data_inicial: '',
+                data_final: ''
+            },
+            dataType: "json",
+        });
+
+        request.done(function (response) {
+            if (response.dados !== false) {
+                setTimeout(function() {
+                    document.querySelector('.modal-titulo').textContent = 'Telemarketing';
+                    dialogDefault('Encontramos '+response.dados.length+' visitas para a data de hoje. <br /><b>Deseja visualizar ?</b>');
+                    $('#modal-default-confirme').modal('show'); 
+                }, 100);
+            }
+        });
+
+        request.fail(function (jqXHR, textStatus) {
+            console.log(jqXHR);
+            alert("Erro: " + textStatus + ' - ' + jqXHR);
+        });
+    }
+    
+    $('#sim_confirma').click(function() {
+        location.href = "<?= base_url('telemarketing'); ?>";
+    });
+
+    alimentarWidGetsAjax();
+    function alimentarWidGetsAjax() {
+        var request = $.ajax({
+            url: "alimentarWidGetsAjax",
+            method: "POST",
+            dataType: "json",
+            cache: true
+        });
+
+        request.done(function (response) {
+            $('#orcamentos').countTo({from: 0, to: response.orcamentos});
+            $('#novasVendas').countTo({from: 0, to: response.novas_vendas});
+            $('#todasVendas').countTo({from: 0, to: response.todas_vendas});
+            $('#totalClientes').countTo({from: 0, to: response.todos_clientes});
+            google.charts.load("current", {packages: ['corechart'], 'language': 'pt'});
+            google.charts.setOnLoadCallback(geraGrafico);
+            marketing();
+        });
+
+        request.fail(function (jqXHR, textStatus) {
+            alert("Erro: " + textStatus + ' - ' + jqXHR);
+        });
+    }
+
+    // ============== grafics ============
+
+    function geraGrafico() {
+        var request = $.ajax({
+            url: "graficoResumo",
+            method: "POST",
+            dataType: "json",
+            cache: true
+        });
+
+        request.done(function (response) {
+            drawChart(response);
+        });
+
+        request.fail(function (jqXHR, textStatus) {
+            alert("Erro: " + textStatus + ' - ' + jqXHR);
+        });
+    }
+
+    function drawChart(response) {
+        
+        if (typeof response['0'] === "undefined") {
+            var mes_0 = 0;
+            var ano_0 = 0;
+            var quantidade_venda_0 = 0;
+        } else {
+            var mes_0 = response['0'].MES;
+            var ano_0 = response['0'].ANO;
+            var quantidade_venda_0 = response['0'].QUANTIDADE_VENDA;
+        }
+        if (typeof response['1'] === "undefined") {
+            var mes_1 = 0;
+            var ano_1 = 0;
+            var quantidade_venda_1 = 0;
+        } else {
+            var mes_1 = response['1'].MES;
+            var ano_1 = response['1'].ANO;
+            var quantidade_venda_1 = response['1'].QUANTIDADE_VENDA;
+        }
+        if (typeof response['2'] === "undefined") {
+            var mes_2 = 0;
+            var ano_2 = 0;
+            var quantidade_venda_2 = 0;
+        } else {
+            var mes_2 = response['2'].MES;
+            var ano_2 = response['2'].ANO;
+            var quantidade_venda_2 = response['2'].QUANTIDADE_VENDA;
+        }
+        if (typeof response['3'] === "undefined") {
+            var mes_3 = 0;
+            var ano_3 = 0;
+            var quantidade_venda_3 = 0;
+        } else {
+            var mes_3 = response['3'].MES;
+            var ano_3 = response['3'].ANO;
+            var quantidade_venda_3 = response['3'].QUANTIDADE_VENDA;
+        }
+        if (typeof response['4'] === "undefined") {
+            var mes_4 = 0;
+            var ano_4 = 0;
+            var quantidade_venda_4 = 0;
+        } else {
+            var mes_4 = response['4'].MES;
+            var ano_4 = response['4'].ANO;
+            var quantidade_venda_4 = response['4'].QUANTIDADE_VENDA;
+        }
+        if (typeof response['5'] === "undefined") {
+            var mes_5 = 0;
+            var ano_5 = 0;
+            var quantidade_venda_5 = 0;
+        } else {
+            var mes_5 = response['5'].MES;
+            var ano_5 = response['5'].ANO;
+            var quantidade_venda_5 = response['5'].QUANTIDADE_VENDA;
+        }
+        if (typeof response['6'] === "undefined") {
+            var mes_6 = 0;
+            var ano_6 = 0;
+            var quantidade_venda_6 = 0;
+        } else {
+            var mes_6 = response['6'].MES;
+            var ano_6 = response['6'].ANO;
+            var quantidade_venda_6 = response['6'].QUANTIDADE_VENDA;
+        }
+        
+        if (typeof response['7'] === "undefined") {
+            var mes_7 = 0;
+            var ano_7 = 0;
+            var quantidade_venda_7 = 0;
+        } else {
+            var mes_7 = response['7'].MES;
+            var ano_7 = response['7'].ANO;
+            var quantidade_venda_7 = response['7'].QUANTIDADE_VENDA;
+        }
+        
+        var data = google.visualization.arrayToDataTable([
+            ["Element", "Total vendas", {role: "style"}], 
+            [mes_0 + '/' + ano_0, parseFloat(quantidade_venda_0), "#3F51B5"],
+            [mes_1 + '/' + ano_1, parseFloat(quantidade_venda_1), "#3F51B5"],
+            [mes_2 + '/' + ano_2, parseFloat(quantidade_venda_2), "#3F51B5"],
+            [mes_3 + '/' + ano_3, parseFloat(quantidade_venda_3), "#3F51B5"],
+            [mes_4 + '/' + ano_4, parseFloat(quantidade_venda_4), "#3F51B5"],
+            [mes_5 + '/' + ano_5, parseFloat(quantidade_venda_5), "#3F51B5"],
+            [mes_6 + '/' + ano_6, parseFloat(quantidade_venda_6), "#3F51B5"],
+            [mes_7 + '/' + ano_7, parseFloat(quantidade_venda_7), "#3F51B5"],
+        ]);
+
+        var view = new google.visualization.DataView(data);
+        view.setColumns([0, 1,
+            {calc: "stringify",
+                sourceColumn: 1,
+                type: "string",
+                role: "annotation"},
+            2]);
+
+        var options = {
+            title: 'Relatório de vendas totalizadas por mês',
+            bar: {groupWidth: "30%"},
+            legend: {position: "none"},
+            vAxis: {
+                title: 'Ranking',
+                titleTextStyle: {
+                    fontSize: 18,
+                    color: '#3F51B5',
+                    bold: true,
+                    italic: false
+                }
+            }
+        };
+        var chart = new google.visualization.ColumnChart(document.getElementById("columnchart_values"));
+        chart.draw(view, options);
+    }
+    // ============== grafics ============
+
+
+        // ======================
+        function buscarDados() {
+            
+            var request = $.ajax({
+                url: "<?= base_url('metaVendas'); ?>",
+                method: "GET",
+                dataType: "json",
+                cache: true
+            });
+
+            request.done(function (response) {
+//                console.log(response);
+                drawMultSeries(response);
+            });
+
+            request.fail(function (jqXHR, textStatus) {
+                alert("Erro: " + textStatus + ' - ' + jqXHR);
+            });
+            return false;
+        }
+
+        function drawMultSeries(dados) {
+//            console.log(dados);
+            var total_venda = 0;
+            var total_meta = 0;
+            var mes = 0;
+            
+            if (dados.total_meta !== null) {
+                total_meta = parseFloat(dados.total_meta);
+            }
+
+            if (dados.total_venda !== null) {
+                total_venda = parseFloat(dados.total_venda);
+            }
+
+            if (typeof dados.mes !== 'undefined') {
+                mes = dados.mes;
+            }
+            
+            
+            var data = google.visualization.arrayToDataTable([
+                ['Mês', 'Meta Vendas', 'Total Vendas'],
+                [mes, total_meta, total_venda],
+            ]);
+
+            var options = {
+                title: 'Gráfico de vendas',
+                chartArea: {width: '50%'},
+                hAxis: {
+                  title: 'Total pedidos',
+                  minValue: 0,
+                  format: 'R$ #########',
+                },
+                vAxis: {
+                  title: 'Mês',
+                },
+            };
+
+            var chart = new google.visualization.BarChart(document.getElementById('chart_div'));
+            chart.draw(data, options);
+        }
+            
+        google.charts.load('current', {packages: ['corechart', 'bar'], 'language': 'pt'});
+        google.charts.setOnLoadCallback(buscarDados);
+        // ======================
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,206 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Dashboard extends MY_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        if($this->session->userdata()['CODIGO'] == false)
+            redirect('login');
+    }
+
+    public function index() {
+        
+        $data['title'] = 'ADMIN | Dashboard';
+        $data['active'] = 'dashboard';
+        
+        $this->load->model('vendas_models');
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+        
+        $data['novidades'] = $this->getNovidades();
+
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('template/modal');
+        $this->load->view('telas/view_dashboard');
+        $this->load->view('template/footer');
+        $this->load->view('ajax/dashboard');
+    }
+    
+    public function telemarketing() {
+        
+        $data['title'] = 'ADMIN | Telemarketing';
+        $data['active'] = 'dashboard';
+
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('template/modal');
+        $this->load->view('telas/view_telemarketing');
+        $this->load->view('template/footer');
+        $this->load->view('ajax/telemarketing');
+    }
+    
+    public function manualSistema() {
+        
+        $data['title'] = 'ADMIN | Manual Sistema';
+        $data['active'] = 'manualSistema';
+
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('telas/view_manual');
+        $this->load->view('template/footer');
+    }
+    
+    public function alimentarWidGetsAjax() {
+        
+        $onlineVisClientes = $this->session->userdata['ONLINE_VIS_CLIENTES'];
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+        $usuarioVisualizarVendas = $this->session->userdata()['VISUALIZAR_VENDAS'];
+
+        $this->load->model('clientes_models');
+        $retorno_clientes = $this->clientes_models->listagemTelaClienteAjax($vendedor, $onlineVisClientes, $usuarioVisualizarVendas, 'T');
+
+        $this->load->model('vendas_models');
+        $orcamentos = $this->vendas_models->getCountSales($vendedor, date('Ymd'), 'O');
+        $novas_vendas = $this->vendas_models->getCountSales($vendedor, date('Ymd'), 'N');
+        $todas_vendas = $this->vendas_models->getCountSales($vendedor, date('Ymd'), 'S');
+        
+        echo json_encode(array("novas_vendas" => count($novas_vendas['data']), "todas_vendas" => count($todas_vendas['data']), "todos_clientes" => count($retorno_clientes['data']), "orcamentos" => count($orcamentos['data'])));
+    }
+    
+    public function graficoResumo() {        
+        $data_inicial_8 = date('Ym', strtotime('-7 month'));
+        $return[] = $this->teste($data_inicial_8, $data_inicial_8);
+        
+        $data_inicial_7 = date('Ym', strtotime('-6 month'));
+        $return[] = $this->teste($data_inicial_7, $data_inicial_7);
+
+        $data_inicial_6 = date('Ym', strtotime('-5 month'));
+        $return[] = $this->teste($data_inicial_6, $data_inicial_6);
+        
+        $data_inicial_5 = date('Ym', strtotime('-4 month'));
+        $return[] = $this->teste($data_inicial_5, $data_inicial_5);
+        
+        $data_inicial_4 = date('Ym', strtotime('-3 month'));
+        $return[] = $this->teste($data_inicial_4, $data_inicial_4);
+        
+        $data_inicial_3 = date('Ym', strtotime('-2 month'));
+        $return[] = $this->teste($data_inicial_3, $data_inicial_3);
+        
+        $data_inicial_2 = date('Ym', strtotime('-1 month'));
+        $return[] = $this->teste($data_inicial_2, $data_inicial_2);
+
+        $data_inicial_1 = date('Ym');
+        $return[] = $this->teste($data_inicial_1, $data_inicial_1);
+
+        echo json_encode($return);
+    }
+    
+    public function teste($data_base, $data_final) {
+        $this->load->model('vendas_models');
+
+        $meta_venda_apartir_dia = $this->session->userdata('META_VENDA_APARTIR_DIA');
+
+        if (strlen($meta_venda_apartir_dia) == 1) {
+            $meta_venda_apartir_dia = '0'.$this->session->userdata('META_VENDA_APARTIR_DIA');
+        }
+        
+        $dia_parametro = $meta_venda_apartir_dia; // geralmente é 26 ou 01
+        $dia = date('d');
+
+        if ($dia_parametro == 01) {
+            $data_meta = $data_base;
+
+            $data_init = $data_base . $dia_parametro;
+            $data_final = $data_base . cal_days_in_month(CAL_GREGORIAN, substr($data_final, 4, 2) , substr($data_final, 0, 4));
+        } else {
+            
+            $data_subtrair_ini = $data_base . $dia_parametro;
+            $data_init = date('Ymd', strtotime('-1 month', strtotime($data_subtrair_ini)));
+
+            if ($dia_parametro != 01) {
+                $data_final = $data_base . '25';
+            }
+
+            if ($dia > $dia_parametro) {
+                $data_meta = date($data_base, strtotime('+1 month', strtotime($data_base)));
+                $data_init = date('Ymd', strtotime('+1 month', strtotime($data_init)));
+                $data_final = date('Ymd', strtotime('+1 month', strtotime($data_final)));
+                $ultimo_dia = cal_days_in_month(CAL_GREGORIAN, date('m'), date('Y')); // 31
+                if ($data_base != $data_meta && $dia > $ultimo_dia) {
+                    $data_meta = $data_base;
+                }
+            } else {
+                $data_meta = $data_base;
+            }
+
+        }
+        $vendedor_ext = $this->session->userdata('VENDEDOR');
+        
+        //return array('$data_meta' => $data_meta, '$data_init' => $data_init, '$data_final' => $data_final, '$vendedor_ext' => $vendedor_ext);
+
+        $result = $this->vendas_models->graficoResumo($data_init, $data_final, $vendedor_ext, $data_meta);
+        return $result;
+    }
+    
+    public function metaVendas() {
+        $this->load->model('vendas_models');
+
+        $meta_venda_apartir_dia = $this->session->userdata('META_VENDA_APARTIR_DIA');
+
+        if (strlen($meta_venda_apartir_dia) == 1) {
+            $meta_venda_apartir_dia = '0'.$this->session->userdata('META_VENDA_APARTIR_DIA');
+        }
+        
+        $dia_parametro = $meta_venda_apartir_dia; // geralmente é 26 ou 01
+        $dia = date('d');
+        $data_base = date('Ym');
+        $data_final = date('Ymd');
+
+        if ($dia_parametro == 01) {
+            $data_meta = $data_base;
+
+            $data_init = $data_base . $dia_parametro;
+
+        } else {
+            
+            $data_subtrair_ini = $data_base . $dia_parametro;
+            $data_init = date('Ymd', strtotime('-1 month', strtotime($data_subtrair_ini)));
+
+            if ($dia_parametro != 01) {
+                $data_final = $data_base . '25';
+            }
+
+            if ($dia > $dia_parametro) {
+                $data_meta = date('Ym', strtotime('+1 month', strtotime($data_base)));
+                $data_init = date('Ymd', strtotime('+1 month', strtotime($data_init)));
+                $data_final = date('Ymd', strtotime('+1 month', strtotime($data_final)));
+                $ultimo_dia = cal_days_in_month(CAL_GREGORIAN, date('m'), date('Y')); // 31
+                if ($data_base != $data_meta && $dia > $ultimo_dia) {
+                    $data_meta = $data_base;
+                }
+            } else {
+                $data_meta = $data_base;
+            }
+
+        }
+//        echo json_encode(array('$data_init' => $data_init, '$data_final' => $data_final, '$data_meta' => $data_meta, '$dia' => $dia, '$dia_parametro' => $dia_parametro, '$dia > $dia_parametro' => $dia > $dia_parametro));
+//        exit();
+
+        $vendedor = $this->session->userdata('VENDEDOR');
+        
+        $metasVendas = $this->vendas_models->metavendas($data_meta, $data_init, $data_final, $vendedor);
+
+        $total_meta = isset($metasVendas[0]['VALOR']) ? $metasVendas[0]['VALOR'] : 0;
+        $total_venda = isset($metasVendas[1]['VALOR']) ? $metasVendas[1]['VALOR'] : 0;
+        $mes = substr($data_meta, 4, 2).'/'.substr($data_meta, 0, 4);
+
+        echo json_encode(array('total_venda' => $total_venda, 'total_meta' => $total_meta, 'mes' => $mes, '$data_init' => $data_init, '$data_final' => $data_final, '$data_meta' => $data_meta, 'usuarho' => $this->session->userdata('VENDEDOR')));
+    }
+
+}

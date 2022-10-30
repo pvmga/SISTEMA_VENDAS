@@ -1,0 +1,673 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Venda extends MY_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        if ($this->session->userdata()['CODIGO'] == false)
+            redirect('login');
+    }
+
+    public function index() {
+
+        $data['title'] = 'ADMIN | Listagem de vendas';
+        $data['active'] = 'listagemVenda';
+
+        $this->load->model('vendas_models');
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+        
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('template/modal');
+        $this->load->view('telas/view_listagemVenda');
+
+        $this->load->view('template/footer');
+        $this->load->view('ajax/listagemVenda');
+    }
+    
+    public function gerarCodigoVenda() {
+        $this->load->model('vendas_models');
+        $numero_venda = $this->vendas_models->geraCodigoVenda();
+        
+        echo json_encode($numero_venda);
+    }
+    
+    public function cadastrarVenda() {
+
+        $data['title'] = 'ADMIN | Cadastrar vendas';
+        $data['active'] = 'listagemVenda';
+
+        $this->load->model('vendas_models');
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+
+        // desabilitar campo de valor unitário.
+        $data['disabledValorUnitario'] = $this->desabilitarUnitarioForm();
+
+        // desabilitar campo de percentual de desconto.
+        $data['disabledPercDesconto'] = $this->desabilitarDescontoForm();
+        
+        $data['alterarPeiddo'] = ($this->uri->segment(3) == 'F') ? "disabled" : '';
+       
+        $data['alterarPeiddo'] = "";
+        $data['botao'] = "Apenas salvar";
+        if ($this->uri->segment(3) == 'F') {
+            $data['alterarPeiddo'] = "disabled";
+            $data['botao'] = "Enviar pedido para o caixa";
+        }
+        if ($this->uri->segment(3) == 'V') {
+            $data['alterarPeiddo'] = "disabled";
+            $data['desabilitar_botao'] = "disabled";
+        }
+
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('template/modal');
+        $this->load->view('telas/view_venda');
+
+        $this->load->view('template/footer');
+        $this->load->view('ajax/dadosVenda');
+    }
+
+    public function listaClientesAjax() {
+
+        $onlineVisClientes = $this->session->userdata['ONLINE_VIS_CLIENTES'];
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+        $usuarioVisualizarVendas = $this->session->userdata()['VISUALIZAR_VENDAS'];
+        $usuarioVenderClienteBloq = $this->session->userdata()['ONLINE_VENDER_CLIENTE_BLOQ'];
+        $parametroVisualizarVendas = $this->session->userdata()['VEND_VISUALIZA_VENDAS'];
+        
+        $this->load->model('clientes_models');
+        $retorno = $this->clientes_models->listaClientesAjax($this->input->get('q'), $vendedor, $onlineVisClientes, $usuarioVisualizarVendas, $usuarioVenderClienteBloq, $parametroVisualizarVendas);
+        echo json_encode($retorno);
+    }
+
+    public function listaTransportadoraAjax() {
+
+        $this->load->model('fornecedor_models');
+        $result = $this->fornecedor_models->listaTransportadora($this->input->get('q'));
+
+        echo json_encode($result);
+    }
+
+    public function listaProdutoAjax() {
+        $this->load->model('produtos_models');
+        
+        $parametros = array(
+            'ESTADO_EMPRESA' => $this->session->userdata('ESTADO_EMPRESA'),
+            'CALC_IMPOSTOS_NF' => $this->session->userdata('CALC_IMPOSTOS_NF'),
+            'ONLINE_ESTOQUE' => $this->session->userdata('ONLINE_ESTOQUE'),
+            'TABELA_PRECO_MINIMO_PEDIDO' => $this->session->userdata('TABELA_PRECO_MINIMO_PEDIDO')
+        );
+
+        $decimal = $this->session->userdata('CASAS_DECIMAIS_VENDA');
+        $desconsidera_ipi = $this->session->userdata('DESC_IPI_VENDA');
+        
+        $estado_cliente = $this->input->get('estado');
+        $optante_simples_cliente = $this->input->get('optante');
+        $produtoPesquisa = $this->input->get('q');
+        
+        $em_massa = ($this->input->get('em_massa') == NULL) ? 'S' : 'N';
+
+        $cod_condicao_pagamento = empty($this->input->get('cod_condicao_pagamento')) ? $this->session->userdata('COD_CONDPGTO_PADRAO') : $this->input->get('cod_condicao_pagamento');
+        
+        // buscar cliente e verificar se irá calcular ST ou não.
+        $codigoInternoCliente = $this->input->get('codigoInternoCliente');
+        $tipo_busca = (empty($this->input->get('tipo_busca'))) ? 'string' : $this->input->get('tipo_busca');
+        $calcula_st = $this->retornaDadosCliente($codigoInternoCliente); // Verificar qualquer dia a possibilidade de remover essa busca, fazer da mesma forma que trago estado e se é optante do simples ou não.
+        
+        $result = $this->produtos_models->listaProdutoAjax($produtoPesquisa, $estado_cliente, $optante_simples_cliente, $parametros, $decimal, $calcula_st, $desconsidera_ipi, $cod_condicao_pagamento, $em_massa, $tipo_busca);
+
+        echo json_encode($result);
+    }
+    
+    public function listaProdutoTelaDeLista() {
+        $this->load->model('produtos_models');
+        $decimal = $this->session->userdata('CASAS_DECIMAIS_VENDA');
+        $online_estoque = $this->session->userdata('ONLINE_ESTOQUE');
+        
+        $existe = $this->input->post('buscar');
+        $condicao_pagamento = empty($this->input->post('condicao_pagamento')) ? $this->session->userdata('COD_CONDPGTO_PADRAO') : $this->input->post('condicao_pagamento');
+        
+        if ($this->input->post('buscar') == 1) {
+            $data['data'][] = [
+                'codigo' => '',
+                'descricao' => '...',
+                'estoqueatual' => '',
+                'reservado' => '',
+                'disponivel' => '',
+                'preco_venda_a' => '',
+                'acrescimo' => '',
+                'desconto' => '',
+                'total_sem_impostos' => '',
+                'complemento' => '',
+                'input' => '',
+            ];
+        } else {
+            $data = $this->produtos_models->listaProdutoTelaDeLista($decimal, $online_estoque, $condicao_pagamento);
+        }
+        
+        echo json_encode($data);
+    }
+    
+    public function recuperarFotoProduto() {
+        $this->load->model('produtos_models');
+        
+        $decimal = $this->session->userdata('CASAS_DECIMAIS_VENDA');
+
+        $produtoPesquisa = $this->input->get('q');
+        $result = $this->produtos_models->recuperarFotoProduto($produtoPesquisa, $decimal);
+
+        echo json_encode($result);
+    }
+
+    public function addProdutoTabela($alterar = 'N', $codigo_produto = NULL, $descricao = NULL, $valor_unit = NULL, $quantidade = NULL, $desconto = NULL, $codigo_cliente = NULL, $estado = NULL, $optante_simples = NULL, $aliquota_ipi = NULL, $sequencia = NULL, $dif_st = NULL, $data_fechamento = NULL, $custo_bruto = NULL, $acrescimo = NULL, $grupo = NULL) {
+        $this->load->model('produtos_models');
+        
+        $parametros = array(
+            'ESTADO_EMPRESA' => $this->session->userdata('ESTADO_EMPRESA'),
+            'CALC_IMPOSTOS_NF' => $this->session->userdata('CALC_IMPOSTOS_NF')
+        );
+        
+        $decimal = $this->session->userdata('CASAS_DECIMAIS_VENDA');
+        
+        $estado_cliente = !empty($this->input->get('estado')) ? $this->input->get('estado') : $estado;
+        $optante_simples_cliente = !empty($this->input->get('optante')) ? $this->input->get('optante') : $optante_simples;
+        $produtoPesquisa = !empty($this->input->get('q')) ? $this->input->get('q') : $codigo_produto;
+        
+        $valor_unitario = !empty($this->input->get('valor_unitario')) ? $this->input->get('valor_unitario') : $valor_unit;
+        $custo_bruto = !empty($this->input->get('custo_bruto')) ? $this->input->get('custo_bruto') : $custo_bruto;
+        
+        $acrescimo = !empty($this->input->get('acrescimo')) ? $this->input->get('acrescimo') : $acrescimo;
+
+        $quantidade_digitada = !empty($this->input->get('quantidade_digitada')) ? $this->input->get('quantidade_digitada') : $quantidade;
+        $perc_desconto = !empty($this->input->get('perc_desconto')) ? $this->input->get('perc_desconto') : $desconto;
+        
+        // PARAMETRO PARA VERIFICAR QUANDO OU NÃO CALCULAR IPI
+        $desconsidera_ipi = $this->session->userdata('DESC_IPI_VENDA');
+        
+        $aliquota_ipi = !empty($this->input->get('aliquota_ipi')) ? $this->input->get('aliquota_ipi') : $aliquota_ipi;
+        
+        // buscar cliente e verificar se irá calcular ST ou não.
+        $codigoInternoCliente = !empty($this->input->get('codigoInternoCliente')) ? $this->input->get('codigoInternoCliente') : $codigo_cliente;
+        $calcula_st = $this->retornaDadosCliente($codigoInternoCliente);
+        
+        $valor_unitario = str_replace(",", ".", $valor_unitario);
+        
+        // calculo de acrescimo antes de realizar o calculo de desconto. Este acrescimo vem da condição de pagamento.
+        $valor_unitario = round($valor_unitario+($valor_unitario * ($acrescimo / 100)), 3); // ajustado para ser equivalente com o gerenciador
+        
+        $perc_desconto = str_replace(",", ".", $perc_desconto);
+
+        if ($perc_desconto > 0) {
+            $novo_valor = round($valor_unitario - ($valor_unitario * ($perc_desconto / 100)), 3); //ajustado para ser equivalente com o gerenciador
+        } else {
+            $perc_desconto = 0;
+            $novo_valor = round($valor_unitario, $decimal);
+        }
+
+        $valorXquantidade = round($novo_valor * $quantidade_digitada, 2);
+
+        $valor_com_imposto = $dif_st + $valorXquantidade;
+        // COMENTADO ESSE IF POIS O MESMO ESTAVA INFLUENCIANDO NO PEDIDO APOS FINALIZADO. NÃO EXIBIA OS VALORES DOS IMPOSTOS.
+//        if ($data_fechamento == NULL) {
+            $valor_com_imposto = $this->produtos_models->retornaImposto($valorXquantidade, $produtoPesquisa, $estado_cliente, $optante_simples_cliente, $parametros, $decimal, $calcula_st, $aliquota_ipi, $desconsidera_ipi);
+//        }
+
+        $valor_imposto = round(($valor_com_imposto - $valorXquantidade), 2);
+        $total_liquido = $valorXquantidade;
+        if ($alterar == 'S') {
+            $result = array(
+                'cod_prod' => $codigo_produto,
+                'descricao' => $descricao,
+                'valor_imposto' => number_format(($valor_com_imposto - $valorXquantidade), 2, ',', '.'),
+                'valor_imposto_impressao' => number_format(($valor_com_imposto - $valorXquantidade), 2), // utilizado na impressão de pedido
+                'valor_unitario_com_desconto' => number_format($novo_valor, $decimal, ',', ''),
+                'total_liquido' => number_format(round($valorXquantidade, $decimal), 2, ',', ''),
+                'total_liquido_impressao' => number_format(round($valorXquantidade, $decimal), 2), // utilizado na impressão de pedido
+                'total' => number_format($valor_imposto + $total_liquido, 2, ',', ''),
+//                'total' => number_format(round($valor_com_imposto, $decimal), 2, ',', ''),
+                'percentual_desconto' => number_format($perc_desconto, $decimal, ',', '.'),
+                'valor_unit' => number_format($valor_unit, $decimal, ',', ''),
+                'quantidade' => number_format($quantidade),
+                'aliquota_ipi' => ($aliquota_ipi == 0) ? 0 : $aliquota_ipi,
+                'sequencia_produto' => $sequencia,
+                'custo_bruto' => $custo_bruto,
+                'acrescimo' => number_format($acrescimo, $decimal),
+                'cod_grupo' => $grupo,
+            );
+
+            return $result;
+        } else {
+            $result = array(
+                'valor_imposto' => number_format(($valor_com_imposto - $valorXquantidade), 2, ',', '.'),
+                'valor_unitario_com_desconto' => number_format($novo_valor, $decimal, ',', ''),
+                'total_liquido' => number_format(round($valorXquantidade, $decimal), 2, ',', ''),
+                'total' => number_format($valor_imposto + $total_liquido, 2, ',', ''),
+//                'total' => number_format(round($valor_com_imposto, $decimal), 2, ',', ''),
+                'percentual_desconto' => number_format($perc_desconto, $decimal, ',', '.'),
+                'aliquota_ipi' => ($aliquota_ipi == 0) ? 0 : $aliquota_ipi,
+                'total_liquido_impressao' => number_format(round($valorXquantidade, $decimal), 2), // utilizado na impressão de pedido
+                'valor_imposto_impressao' => number_format(($valor_com_imposto - $valorXquantidade), 2), // utilizado na impressão de pedido
+                'custo_bruto' => $custo_bruto,
+                'produto' => $produtoPesquisa,
+            );
+            echo json_encode($result);
+        }
+    }
+
+    public function listaCondicaoPagamentoAjax() {
+
+        $this->load->model('pagamentos_models');
+        $result = $this->pagamentos_models->listaCondicaoPagamentoAjax($this->input->get('q'));
+
+        echo json_encode($result);
+    }
+
+    public function listaTipoPagamentoAjax() {
+
+        $this->load->model('pagamentos_models');
+        $result = $this->pagamentos_models->listaTipoPagamentoAjax($this->input->get('q'));
+
+        echo json_encode($result);
+    }
+    
+    public function listagemTelaVendaAjax() {
+        $this->load->model('vendas_models');
+
+        $buscar_orcamentos = $this->input->post('buscar_parametro');
+        $data_venda_inicial = explode("/", empty($this->input->post('data_venda_inicial')) ? '01/01/1993' : $this->input->post('data_venda_inicial'));
+        $data_venda_final = explode("/", empty($this->input->post('data_venda_final')) ? date('Ymd') : $this->input->post('data_venda_final'));
+
+        $data_inicial = $data_venda_inicial[2].$data_venda_inicial[1].$data_venda_inicial[0];
+        $data_final = $data_venda_final[2].$data_venda_final[1].$data_venda_final[0];
+
+        $decimal = $this->session->userdata('CASAS_DECIMAIS_VENDA');
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+        $novas_vendas = $this->vendas_models->listagemTelaVendaAjax($vendedor, $buscar_orcamentos, $decimal, $data_inicial, $data_final);
+
+        echo json_encode($novas_vendas);
+    }
+    
+    public function retornaDadosCliente($codigoCliente) {
+        $this->load->model('clientes_models');
+        
+        $tipo_cliente = $this->clientes_models->buscaClientePreencheFormulario($codigoCliente);
+        
+        if ($tipo_cliente['CONSUMIDOR_FINAL'] == 'S' || $tipo_cliente['INSCRICAO'] == 'ISENTO' || $tipo_cliente['INSCRICAO'] == '' || $tipo_cliente['DISP_ST'] == 'S' || $tipo_cliente['CONTRIBUINTE_ICMS'] == 'N') {
+            $calcula_st = 'N';
+        } else {
+            $calcula_st = 'S';
+        }
+        
+        return $calcula_st;
+    }
+    
+    public function realizarUpdateVenda($codigo_venda = NULL, $tipo_venda = NULL) {
+        $this->load->model('vendas_models');
+        
+        $codigo_venda = !empty($this->input->post('codigo_venda')) ? $this->input->post('codigo_venda') : $codigo_venda;
+        $tipo_venda = !empty($this->input->post('tipo_venda')) ? $this->input->post('tipo_venda') : $tipo_venda;
+        
+        // faço update para não ser exibido na mais grid do venda2.
+        $update_situacao = $this->vendas_models->updateSituacaoPedido($codigo_venda, $tipo_venda);
+        if ($update_situacao == false) {
+            $msg = 'NO MÓDULO DE VENDA, CLICOU EM E AINDA CONFIRMOU. OPERAÇÃO GEROU ALGUM ERRO TENTE NOVAMENTE ('.$codigo_venda.'). TIPO: ' . $tipo_venda;
+        } else {
+            $msg = 'NO MÓDULO DE VENDA, CLICOU EM E AINDA CONFIRMOU. OPERAÇÃO CONCLUIDA COM SUCESSO ('.$codigo_venda.'). TIPO: ' . $tipo_venda;
+        }
+        
+        $this->rastreamentoXml('venda', $this->session->userdata('NOME'), $msg);
+        
+        return $update_situacao;
+    }
+    
+    public function updateVenda() {
+        $codigo_venda = $this->input->post('codigo_venda');
+        $tipo_venda = $this->input->post('tipo_venda');
+        
+        echo json_encode($this->realizarUpdateVenda($codigo_venda, $tipo_venda));
+    }
+   
+    public function inserirPedido() {
+        $this->load->model('vendas_models');
+        
+        // dados do pedido
+        $dadosVenda = $this->input->post('dadosVenda');
+        
+        $decimal = $this->session->userdata('CASAS_DECIMAIS_VENDA');
+        
+        // items do pedido
+        $itens = $this->input->post('itens');
+        $item = json_decode($itens);
+
+        if ($dadosVenda[0]['finalizar_pedido'] == 'S') {
+            $tabelaItens = 'ITENSVEN';
+            $tabelaVenda = 'VENDA';
+        } else {
+            $tabelaItens = 'ITENSVEN2';
+            $tabelaVenda = 'VENDA2';
+        }
+        
+        if ($dadosVenda[0]['codigo_venda'] == '') {
+            $numero_venda = $this->vendas_models->geraCodigoVenda();
+            $codigo_venda = $numero_venda['GEN_VALUE'];
+        } else {
+            $codigo_venda = $dadosVenda[0]['codigo_venda'];
+            if ($tabelaVenda == 'VENDA2') {
+                // historico vendas2
+                $msg = 'SALVOU NO VENDA2';
+                $this->salvarXmlVenda($codigo_venda, $dadosVenda[0]['codigo_cliente'], $item, $tabelaVenda, $msg, $dadosVenda[0]['condicaoPagamento'], $dadosVenda[0]['tipo_pagamento']);
+                
+                $this->vendas_models->deleteVendaItens($codigo_venda);
+                $this->vendas_models->deleteVenda($codigo_venda);
+            } else {
+                $verifica_existencia = $this->vendas_models->buscarPedido($codigo_venda, $tabelaVenda);
+                // faço update para não ser exibido na mais grid do venda2.
+                $this->realizarUpdateVenda($codigo_venda, 'E');
+                if ($verifica_existencia != false) {
+                    $msg = 'TENTOU INSERIR PELA SEGUNDA VEZ O PEDIDO NO GADM ' . $codigo_venda;
+                    $this->rastreamentoXml('venda', $this->session->userdata('NOME'), $msg);
+                    echo json_encode('EXISTE_PEDIDO_VENDA');
+                    exit();
+                }
+            }
+        }
+        
+        $valor_total_itens = 0;
+        $valor_total_ipi = 0;
+        $valor_st = 0;
+        for ($x = 0; $x < count($item); $x++) {
+            $valor_unitario = str_replace(",", ".", substr($item[$x]->valor_unitario, 2));
+            $percentual_desconto = str_replace(",", ".", substr($item[$x]->percentual_desconto, 0, -1));
+            $aliquota_ipi = str_replace(",", ".", substr($item[$x]->aliquota_ipi, 0, -1));
+            
+            $dadosItens = array(
+                'COD_VENDA' => $codigo_venda,
+                'COD_PROD' => $item[$x]->codigo,
+                'SEQUENCIA' => $item[$x]->sequencia_produto,
+                'UNIDADE' => 'UN',
+                'QUANTIDADE' => number_format($item[$x]->quantidade_digitada, $decimal, '.', ''),
+                'QTDE_RESERVADA' => number_format($item[$x]->quantidade_digitada, $decimal, '.', ''),
+                'VALOR_UNIT' => $valor_unitario,
+                'DESCONTO' => $percentual_desconto,
+                'VALOR_CUSTO' => $valor_unitario,
+                //'VALOR_ORIGINAL' => $valor_unitario,
+                'ACRESCIMO' => $item[$x]->percentual_acrescimo,
+                'IPI' => $aliquota_ipi,
+                'FABRICAR' => 'N',
+                'CUSTO_PRODUTO' => $item[$x]->custo_bruto, // tipo preço depende do par_cash
+                'COD_GRUPO' => $item[$x]->cod_grupo,
+                'LARGURA' => 0,
+                'GARANTIA' => 'N',
+                'RETIRAR' => 'N',
+                'VP' => 'N',
+                'OBSERVACAO' => $item[$x]->obs_item_table
+            );
+            $dadosItens2[] = $dadosItens;
+
+            array_push($dadosItens, array(
+                'DESCRICAO' => $item[$x]->descricao_produto_table,
+                'UNIT_LIQ' => $item[$x]->valor_unitario_com_desconto,
+                'TOTAL_LIQ' => $item[$x]->valor_total_liquido,
+                'ST_IPI' => $item[$x]->valor_st_ipi,
+                'TOTAL_PRODUTO' => $item[$x]->total_produto
+                )
+            );
+            $itens_backup_email[] = $dadosItens;
+        }
+
+        $dados_itens[] = $this->vendas_models->inserirVendaItens($dadosItens2, $tabelaItens);
+
+//        echo json_encode(array('dadosItens2' => $dadosItens2, 'item' => $item, 'tabela' => $tabelaItens));
+//        exit();
+
+        $total = str_replace(",", ".", $dadosVenda[0]['valor_total_itens']);
+        $valor_total_itens = $valor_total_itens + floatval($total);
+        
+        $dados = array(
+            'COD_VENDA' => $codigo_venda,
+            'COD_CLIENTE' => $dadosVenda[0]['codigo_cliente'],
+            'COD_VENDEDOR' => empty($dadosVenda[0]['codigo_vendedor_interno']) ? $this->session->userdata('ONLINE_COD_VEND_INTERNO_PADRAO') : $dadosVenda[0]['codigo_vendedor_interno'],
+            'COD_VENDEDOR_EXT' => empty($dadosVenda[0]['codigo_vendedor_externo']) ? $this->session->userdata('VENDEDOR') : $dadosVenda[0]['codigo_vendedor_externo'],
+            'COD_PAGAMENTO' => empty($dadosVenda[0]['condicaoPagamento']) ? $this->session->userdata('COD_CONDPGTO_PADRAO') : $dadosVenda[0]['condicaoPagamento'],
+            'TIPO_PAGTO' => $dadosVenda[0]['tipo_pagamento'],
+//            'DATA_VENDA' => empty($dadosVenda[0]['data_venda']) ? date('Ymd') : $dadosVenda[0]['data_venda'],
+            'DATA_VENDA' => date('Ymd'),
+            'FRETE' => 0,//str_replace(",", ".",$dadosVenda[0]['valor_frete']),
+            'VALOR_PAGO' => $valor_total_itens, //+ str_replace(",", ".",$dadosVenda[0]['valor_frete']),
+            'PEDIDO_ECM' => 0,
+            'COD_TRANSP' => empty($dadosVenda[0]['transportadora']) ? $this->session->userdata('TRANSP_PADRAO') : $dadosVenda[0]['transportadora'],
+            'TRANSPORTE' => $dadosVenda[0]['tipo_frete'],
+            'PAR_EMPRESA' => $this->session->userdata('COD_EMPRESA'),
+            //'COD_PLANO_CONTAS' => 1,
+            'CLASSIFICACAO' => 'I',
+            'SITUACAO' => 'V',
+//            'DATA_HORA_VENDA' => empty($dadosVenda[0]['data_hora_venda']) ? date('Ymd h:i:s') : $dadosVenda[0]['data_hora_venda'],
+            'DATA_HORA_VENDA' => date('Ymd h:i:s'),
+            'USUARIO' => $this->session->userdata('APELIDO'),
+            'ENVIADO_CAIXA' => 'N',
+            'CONCLUIDA' => 'N',
+            'PED_WEB' => 'S',
+            'TOTAL_VENDA' => $valor_total_itens,
+            'VALOR_DESC' => $valor_total_itens,
+            'VALOR_OUTROS' => round($valor_st-$valor_total_ipi, 2), // EM TESTE
+            'VALOR_IPI' => round($valor_total_ipi, 2), // EM TESTE
+            'OBS_COMP' => addslashes($dadosVenda[0]['observacoes']),
+            'CONTATO' => 'ONLINE',
+            'NOTAFISCAL' => 'N'
+        );
+
+        $dados_venda = $this->vendas_models->inserirVenda($dados, $tabelaVenda);
+
+        echo json_encode(array(
+                'VENDA' => $dados_venda,
+                'ITENS_VENDA' => $dados_itens,
+                'NUMERO_PEDIDO' => $codigo_venda,
+                'COD_VENDA' => $codigo_venda,
+                'EMAIL_CLIENTE' => $dadosVenda[0]['email_cliente'],
+                'CODIGO_E_NOME_CLIE' => $dadosVenda[0]['codigo_e_nome_clie'],
+                'ITENS' => $itens_backup_email,
+                'TOTAL_PAGO' => $valor_total_itens,
+                'OBSERVACAO' => $dadosVenda[0]['observacoes'],
+                'CONDICAO_PAGAMENTO' => $dadosVenda[0]['codigo_e_descricao_condicao_pagamento'],
+                'TIPO_PAGAMENTO' => $dadosVenda[0]['codigo_e_alterado_tipo_pagamento'],
+                'VALOR_TOTAL_PRODUTOS' => $dadosVenda[0]['valor_total_produtos'],
+                'VALOR_TOTAL_IMPOSTO' => $dadosVenda[0]['valor_total_imposto'],
+                'CODIGO_E_NOME_TRANSPORTADORA' => $dadosVenda[0]['codigo_e_alterado_transportadora'],
+                'CIDADE_CLIENTE' => $dadosVenda[0]['cidade_cliente']
+//                'PRODUTOS_SEM_CUSTO' => $produtos_sem_custo
+            )
+        );
+    }
+    
+    public function enviarEmail() {
+        $teste = $this->input->post('dados');
+        $dados = json_decode($teste, true);
+        if (filter_var($dados['EMAIL_CLIENTE'], FILTER_VALIDATE_EMAIL)) {
+            $email = $this->getConfigEmail($dados);
+        } else {
+            // quando o e-mail do cliente está incorreto.
+            $email = '2';
+        }
+
+        $msg = 'STATUS E-MAIL: ' . $email . '. CODIGO_VENDA: ' . $dados['COD_VENDA'];
+        $this->rastreamentoXml('venda', 'EMAIL-'.$this->session->userdata('NOME'), $msg);
+        
+        echo json_encode($email);
+    }
+    
+    public function buscarDadosPedido($cod_venda = NULL, $incluir_alterar = NULL) {
+        $this->load->model('vendas_models');
+        $numero_pedido = !empty($this->input->get('numero_pedido')) ? $this->input->get('numero_pedido') : $cod_venda;
+        $incluir_alterar = !empty($this->input->get('tipo_orc')) ? $this->input->get('tipo_orc') : $incluir_alterar;
+        
+        if ($incluir_alterar == 'V') {
+            $tableVenda = 'VENDA';
+            $tableItens = 'ITENSVEN';
+        } else {
+            $tableVenda = 'VENDA2';
+            $tableItens = 'ITENSVEN2';
+        }
+        
+        $dados_pedido = $this->vendas_models->buscarDadosPedido($numero_pedido, $tableVenda);
+//        echo json_encode($dados_pedido);
+//        exit();
+
+        $itens_pedido = $this->vendas_models->buscarItensPedido($numero_pedido, NULL, $tableItens);
+        
+        $itens_pedido_com_imposto = '';
+        if ($itens_pedido != FALSE) {
+            for ($i=0; $i<count($itens_pedido); $i++) {
+                $itens_pedido_com_imposto[] = $this->addProdutoTabela(
+                    $alterar = 'S',
+                    $itens_pedido[$i]['COD_PROD'],
+                    $itens_pedido[$i]['DESCRICAO'],
+                    $itens_pedido[$i]['VALOR_UNIT'],
+                    $itens_pedido[$i]['QUANTIDADE'],
+                    $itens_pedido[$i]['DESCONTO'],
+                    $dados_pedido['CODIGO_CLIENTE'],
+                    $dados_pedido['ESTADO'],
+                    $dados_pedido['OPTANTE_SIMPLES'],
+                    $itens_pedido[$i]['IPI'],
+                    $itens_pedido[$i]['SEQUENCIA'],
+                    $itens_pedido[$i]['DIF_ST'],
+                    $dados_pedido['DATA_FECHAMENTO'],
+                    $itens_pedido[$i]['CUSTO_PRODUTO'],
+                    $itens_pedido[$i]['ACRESCIMO'],
+                    $itens_pedido[$i]['GRUPO']
+                );
+            }
+        }
+        if ($cod_venda == NULL) {
+            echo json_encode(array('DADOS' => $dados_pedido, 'ITENS' => $itens_pedido_com_imposto));
+        } else {
+            return (array('DADOS' => $dados_pedido, 'ITENS' => $itens_pedido_com_imposto));
+        }
+    }
+    
+    public function excluirProdutos() {
+        $this->load->model('vendas_models');
+
+        $produtos = $this->input->post('produtos');
+        $produtos_n = json_decode($produtos);
+
+        $codigo_venda = $this->input->post('codigo_venda');
+
+        for($x=0; $x<count($produtos_n); $x++) {
+            $this->vendas_models->excluirProdutos($produtos_n[$x]->codigo_produto, $codigo_venda, $produtos_n[0]->sequencia_produto);
+        }
+
+        echo json_encode(array('PRODUTOS' => $produtos_n));
+    }
+    
+    public function visualizarxml($cliente = null, $nota = null) {
+        $this->load->model('vendas_models');
+        $dados = $this->vendas_models->notaCliente($cliente, $nota);
+        header("Content-type: application/xml");
+        header("Content-Disposition: attachment; filename=" . $cliente .'-'. $nota . ".xml");
+        header("Content-Transfer-Encoding: binary");
+        echo $dados['FILE_XML_NFE'];
+        exit();
+    }
+
+    public function visualizardanfe($cliente = null, $nota = null) {
+        $this->load->model('vendas_models');
+        $dados = $this->vendas_models->notaCliente($cliente, $nota);
+        header("Content-type: application/pdf");
+        header("Content-Disposition: attachment; filename=". $cliente .'-'. $nota . ".pdf");
+        header("Content-Transfer-Encoding: binary");
+        echo $dados['FILE_PDF_NFE'];
+        exit();
+    }
+    
+    public function desabilitarUnitarioForm() {
+        return ($this->session->userdata('ONLINE_PERM_ALT_PRECOS') == 'N') ? 'disabled' : '';
+    }
+
+    public function desabilitarDescontoForm() {
+        return ($this->session->userdata('ONLINE_PERM_DIG_DESCONTO') == 'N') ? 'disabled' : '';
+    }
+    
+    public function impressao() {
+        $data['title'] = 'ADMIN | Impressão de pedido';
+        
+        $tipo_tabela = ($this->uri->segment('3') == 'V') ? 'V' : '';
+        
+        $data['dadosPedido'] = $this->buscarDadosPedido($this->uri->segment('2'), $tipo_tabela);
+//        $this->load->view('telas/relatorios/view_impressao', $data);
+        $this->gerarPdf($this->load->view('telas/relatorios/view_impressao',$data, TRUE));
+    }
+    
+    public function relatorioVendas() {
+        $this->load->model('vendas_models');
+        $data_inicial = $this->formatarData($this->uri->segment(2));
+        $data_final = $this->formatarData($this->uri->segment(3));
+        $buscar_orcamentos = $this->uri->segment(4);
+        $codigo_cliente_buscar = $this->uri->segment(5);
+
+        $decimal = $this->session->userdata('CASAS_DECIMAIS_VENDA');
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+        $novas_vendas['relatorioVendas'] = $this->vendas_models->listagemTelaVendaAjax($vendedor, $buscar_orcamentos, $decimal, $data_inicial, $data_final, $codigo_cliente_buscar);
+        
+//        $this->load->view('telas/relatorios/view_vendas', $novas_vendas);
+        $this->gerarPdf($this->load->view('telas/relatorios/view_vendas', $novas_vendas, TRUE));
+    }
+    
+    function estoqueDisponivel() {
+        $this->load->model('produtos_models');
+        
+        $data = $this->produtos_models->estoqueProdutoRes($this->input->get('codigo_produto'));
+        echo json_encode($data);
+    }
+    
+    public function getByIdClienteDados() {
+        $this->load->model('clientes_models');
+        
+        $codigo_cliente = $this->input->get('codigo_cliente');
+        
+        $retorno = $this->clientes_models->buscaClientePreencheFormulario($codigo_cliente);
+        
+        echo json_encode(array('DADOS' => $retorno));
+    }
+    
+    public function visualizarObsItemPedido() {
+        $this->load->model('vendas_models');
+        
+        $codigo = $this->input->get('codigo');
+        $sequencia = $this->input->get('sequencia');
+        
+        $numero_pedido = $this->input->get('numero_pedido');
+        $incluir_alterar = $this->input->get('tipo_orc');
+        
+        if ($incluir_alterar == 'V') {
+            $tableVenda = 'VENDA';
+            $tableItens = 'ITENSVEN';
+        } else {
+            $tableVenda = 'VENDA2';
+            $tableItens = 'ITENSVEN2';
+        }
+        
+        $result = $this->vendas_models->buscarItensPedido($numero_pedido, $codigo, $tableItens, $sequencia);
+        
+        echo json_encode($result);
+    }
+    
+    public function alterarObsItemPedido() {
+        $this->load->model('vendas_models');
+        
+        $codigo = $this->input->post('codigo');
+        $sequencia = $this->input->post('sequencia');
+        $observacao = $this->input->post('observacao');
+        
+        $numero_pedido = $this->input->post('numero_pedido');
+        
+        $result = $this->vendas_models->alterarObsItemPedidoModels($numero_pedido, $codigo, $sequencia, $observacao);
+        
+        echo json_encode($result);
+    }
+}

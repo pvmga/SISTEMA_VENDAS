@@ -1,0 +1,487 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Clientes_models extends CI_Model {
+
+    public function __construct() {
+        parent::__construct();
+    }
+    
+    public function listaClientesAjax($cliente = NULL, $codigoVendedor = NULL, $onlineVisClientes = NULL, $usuarioVisualizarVendas = NULL, $usuarioVenderClienteBloq = NULL) {       
+        $filtro = ($onlineVisClientes == 'E') ? " AND C.ECOMMERCE = 'S'" : "";
+        $filtro .= ($usuarioVisualizarVendas == 'S') ? "" : " AND C.VENDEDOR_EXTERNO = $codigoVendedor";
+        $filtro .= ($usuarioVenderClienteBloq == 'S') ? "" : " AND C.TIPO_CLIENTE NOT IN('P', 'D')";
+
+        /* Combo que alimenta clientes da venda */
+        $sql = "SELECT
+                    C.CODIGO,
+                    C.NOME_FANTASIA,
+                    C.RAZAO_SOCIAL,
+                    C.LIMITE_CREDITO,
+                    C.CIDADE,
+                    C.ESTADO,
+                    C.OPTANTE_SIMPLES,
+                    C.EMAIL,
+                    C.CODIGO_VENDEDOR,
+                    V.NOME AS NOME_VENDEDOR_INTERNO,
+                    C.VENDEDOR_EXTERNO,
+                    V2.NOME AS NOME_VENDEDOR_EXTERNO
+                FROM CAD_CLIE C
+                LEFT JOIN CAD_VEND V ON(C.CODIGO_VENDEDOR = V.CODIGO)
+                LEFT JOIN CAD_VEND V2 ON(C.VENDEDOR_EXTERNO = V2.CODIGO)
+                WHERE
+                    (
+                        C.NOME_FANTASIA LIKE ?
+                        OR
+                        C.RAZAO_SOCIAL LIKE ?
+                        OR
+                        C.CODIGO LIKE ?
+                    ) --AND
+                    --C.NATUREZA = 'J' -- PARA DESABILITAR ESTA OPÇÃO DEVERÁ REVISAR O CALCULO PARA QUANDO EXISTIR PERCENTUAL DE DESCONTO NO CAMPO CF LÁ NO NBMI
+                    $filtro";
+
+        $query = $this->db->query($sql, array('%' . $cliente . '%', '%' . $cliente . '%', '%' . $cliente . '%'));
+
+        $clientes = $query->result_array();
+        foreach ($clientes as $cliente) {
+            $result['items'][] = array(
+                'id' => $cliente['CODIGO'],
+                'nome_fantasia' => $cliente['NOME_FANTASIA'],
+                'razao_social' => $cliente['RAZAO_SOCIAL'],
+                'limite_credito' => number_format($cliente['LIMITE_CREDITO'], 2, ',', ''),
+                'cidade' => $cliente['CIDADE'],
+                'estado' => $cliente['ESTADO'],
+                'optante_simples' => $cliente['OPTANTE_SIMPLES'],
+                'email' => $cliente['EMAIL'],
+                'codigo_vendedor_interno' => $cliente['CODIGO_VENDEDOR'],
+                'nome_vendedor_interno' => $cliente['NOME_VENDEDOR_INTERNO'],
+                'codigo_vendedor_externo' => $cliente['VENDEDOR_EXTERNO'],
+                'nome_vendedor_externo' => $cliente['NOME_VENDEDOR_EXTERNO'],
+            );
+        }
+
+        return $result;
+    }
+
+    public function listagemTelaClienteAjax($codigoVendedor = NULL, $onlineVisClientes = NULL, $usuarioVisualizarVendas = NULL, $ativo_inativo = 'A') {
+
+        $filtro = ($onlineVisClientes == 'E') ? " ECOMMERCE = 'S'" : " ECOMMERCE IN ('N','S')";
+        $filtro .= ($usuarioVisualizarVendas == 'S') ? "" : " AND VENDEDOR_EXTERNO = ?";
+        if ($ativo_inativo == 'T') {
+            $tipo_cliente = '';
+        } else {
+            $tipo_cliente = "TIPO_CLIENTE = '{$ativo_inativo}' AND";
+        }
+
+        $sql = "SELECT 
+                    CODIGO, 
+                    NOME_FANTASIA,
+                    RAZAO_SOCIAL,
+                    CIDADE,
+                    ESTADO,
+                    TIPO_CLIENTE
+                FROM CAD_CLIE
+                WHERE
+                    $tipo_cliente
+                    --NATUREZA = 'J' AND -- PARA DESABILITAR ESTA OPÇÃO DEVERÁ REVISAR O CALCULO PARA QUANDO EXISTIR PERCENTUAL DE DESCONTO NO CAMPO CF LÁ NO NBMI
+                    $filtro";
+
+        $query = $this->db->query($sql, $codigoVendedor);
+        if ($query->num_rows() > 0) {
+            foreach ($query->result_array() as $cliente) {
+
+                $tipo_cliente = '';
+                $montar_pedido = '<a href="cadastrarVendaCliente/' . $cliente['CODIGO'] . '/" class="btn btn-block btn-success btn-flat" title="Cadastro um novo pedido para o cliente que está com o mouse em cima">Criar Pedido</a>';
+                if ($cliente['TIPO_CLIENTE'] == 'A') {
+                    $tipo_cliente = 'ATIVO';
+                } else if ($cliente['TIPO_CLIENTE'] == 'B') {
+                    $tipo_cliente = 'BLOQUEADO';
+                } else if ($cliente['TIPO_CLIENTE'] == 'I') {
+                    $tipo_cliente = 'INATIVO';
+                }  else if ($cliente['TIPO_CLIENTE'] == 'P') {
+                    $tipo_cliente = 'PROSPECTO';
+                    $montar_pedido = '';
+                } else if ($cliente['TIPO_CLIENTE'] == 'D') {
+                    $tipo_cliente = 'DESCARTE';
+                    $montar_pedido = '';
+                } else {
+                    $tipo_cliente = $cliente['TIPO_CLIENTE'];
+                    $montar_pedido = '';
+                }
+
+                $estado = '';
+                if ($cliente['ESTADO'] == 'PR') {
+                    $estado = 'PARANÁ';
+                } else if ($cliente['ESTADO'] == 'SP') {
+                    $estado = 'SÃO PAULO';
+                } else if ($cliente['ESTADO'] == 'SC') {
+                    $estado = 'SANTA CATARINA';
+                } else if ($cliente['ESTADO'] == 'AL') {
+                    $estado = 'ALAGOAS';
+                } else if ($cliente['ESTADO'] == 'AM') {
+                    $estado = 'AMAZONAS';
+                } else if ($cliente['ESTADO'] == 'AP') {
+                    $estado = 'AMAPÁ';
+                } else if ($cliente['ESTADO'] == 'BA') {
+                    $estado = 'BAHIA';
+                } else if ($cliente['ESTADO'] == 'CE') {
+                    $estado = 'CEARÁ';
+                } else if ($cliente['ESTADO'] == 'DF') {
+                    $estado = 'DISTRITO FEDERAL';
+                } else if ($cliente['ESTADO'] == 'ES') {
+                    $estado = 'ESPÍRITO SANTO';
+                } else if ($cliente['ESTADO'] == 'GO') {
+                    $estado = 'GOIÁS';
+                } else if ($cliente['ESTADO'] == 'MA') {
+                    $estado = 'MARANHÃO';
+                } else if ($cliente['ESTADO'] == 'MG') {
+                    $estado = 'MINAS GERAIS';
+                } else if ($cliente['ESTADO'] == 'MS') {
+                    $estado = 'MATO GROSSO DO SUL';
+                } else if ($cliente['ESTADO'] == 'MT') {
+                    $estado = 'MATO GROSSO';
+                } else if ($cliente['ESTADO'] == 'PA') {
+                    $estado = 'PARÁ';
+                } else if ($cliente['ESTADO'] == 'MT') {
+                    $estado = 'PARAÍBA';
+                } else if ($cliente['ESTADO'] == 'PE') {
+                    $estado = 'PERNAMBUCO';
+                } else if ($cliente['ESTADO'] == 'PI') {
+                    $estado = 'PIAUÍ';
+                } else if ($cliente['ESTADO'] == 'RJ') {
+                    $estado = 'RIO DE JANEIRO';
+                } else if ($cliente['ESTADO'] == 'RN') {
+                    $estado = 'RIO GRANDE DO NORTE';
+                } else if ($cliente['ESTADO'] == 'RO') {
+                    $estado = 'RONDÔNIA';
+                } else if ($cliente['ESTADO'] == 'RR') {
+                    $estado = 'RORAIMA';
+                } else if ($cliente['ESTADO'] == 'RS') {
+                    $estado = 'RIO GRANDE DO SUL';
+                } else if ($cliente['ESTADO'] == 'SE') {
+                    $estado = 'SERGIPE';
+                } else {
+                    $estado = 'TOCANTINS';
+                }
+
+                $data['data'][] = [
+                    'codigo' => $cliente['CODIGO'],
+                    'nome_fantasia' => $cliente['NOME_FANTASIA'],
+                    'razao_social' => $cliente['RAZAO_SOCIAL'],
+                    'cidade' => $cliente['CIDADE'],
+                    'estado' => $estado,
+                    'tipo_cliente' => $tipo_cliente,
+                    'alterar' => '<a href="alterarCliente/' . $cliente['CODIGO'] . '/" class="btn btn-warning btn-flat btnAlterar" title="Alterar cadastro">Alterar</a>',
+                    'telemarketing' => '<a href="telemarketing/' . $cliente['CODIGO'] . '/" class="btn btn-info btn-flat" title="Incluir telemarketing">Telemarketing</a>',
+                    'montar_pedido' => $montar_pedido
+                ];
+            }
+
+            return $data;
+        } else {
+            return 0;
+        }
+    }
+
+    public function verificaCadastro($cgc = NULL, $tipo = NULL) {
+
+        if ($tipo == 'J') {
+            $where = "CLI.CGC = '$cgc'";
+        } else {
+            $cpf = $cgc;
+            $where = "CLI.CPF = '$cpf'";
+        }
+
+        $query = $this->db->query("SELECT 
+                                        CLI.RAZAO_SOCIAL,
+                                        CLI.CODIGO AS CODIGO_CLIENTE,
+                                        CLI.TIPO_CLIENTE,
+                                        VEND.NOME AS VENDEDOR
+                                    FROM 
+                                        CAD_CLIE AS CLI
+                                    LEFT JOIN
+                                        CAD_VEND AS VEND
+                                    ON
+                                        CLI.VENDEDOR_EXTERNO = VEND.CODIGO
+
+                                    WHERE 
+                                        $where");
+
+
+        $dados = $query->result_array();
+        if (count($dados) > 0)
+            return array("vendedor" => trim($dados[0]['VENDEDOR']), "cliente" => $dados[0]['RAZAO_SOCIAL']);
+        else
+            return array();;
+    }
+
+    public function inserirCliente($dados) {
+        return $this->db->insert('CAD_CLIE', $dados);
+    }
+
+    public function updateCliente($dados, $vendedor) {
+        $this->db->where('CODIGO', $dados['CODIGO']);
+        $this->db->where('VENDEDOR_EXTERNO', $vendedor);
+        $query = $this->db->update('CAD_CLIE', $dados);
+        return $query;
+    }
+
+    public function gerarCodigoCliente() {
+        $busca_id = $this->db->query("SELECT MAX(CODIGO)+1 CODIGO FROM CAD_CLIE");
+
+        $seq = $busca_id->row();
+        $codigo = $seq->CODIGO;
+
+        return $codigo;
+    }
+
+    public function buscaClientePreencheFormulario($codigoCliente) {
+
+        $sql = "SELECT C.CODIGO,
+                        C.NATUREZA,
+                        C.OPTANTE_SIMPLES,
+                        C.CGC,
+                        C.INSCRICAO,
+                        C.CPF,
+                        C.RG,
+                        C.RAZAO_SOCIAL,
+                        C.NOME_FANTASIA,
+                        C.CEP,
+                        C.ENDERECO,
+                        C.NUM_END_PRINCIPAL,
+                        C.COMP_ENDERECO,
+                        C.BAIRRO,
+                        C.CIDADE,
+                        C.ESTADO,
+                        C.TELEFONE,
+                        C.CELULAR,
+                        C.FAX,
+                        C.CONTATO,
+                        C.WEBSITE,
+                        C.TRANSPORTADORA,
+                        C.EMAIL,
+                        C.OBS_CADASTRO,
+                        F.NOME_FANTASIA AS TRANSPORTADORA_NOME,
+                        F.CODIGO AS CODIGO_TRANSPORTADORA,
+                        F.RAZAO_SOCIAL AS RAZAO_SOCIAL_TRANSPORTADORA,
+                        C.CONSUMIDOR_FINAL,
+                        C.INSCRICAO,
+                        C.DISP_ST,
+                        C.CODIGO_VENDEDOR,
+                        V.NOME AS NOME_VENDEDOR_INTERNO,
+                        C.VENDEDOR_EXTERNO,
+                        V2.NOME AS NOME_VENDEDOR_EXTERNO,
+                        C.CONTRIBUINTE_ICMS,
+                        C.LIMITE_CREDITO
+                    FROM CAD_CLIE C
+                    LEFT JOIN CAD_FORN F ON(C.TRANSPORTADORA = F.CODIGO)
+                    LEFT JOIN CAD_VEND V ON(C.CODIGO_VENDEDOR = V.CODIGO)
+                    LEFT JOIN CAD_VEND V2 ON(C.VENDEDOR_EXTERNO = V2.CODIGO)
+                    WHERE
+                        C.CODIGO = ?";
+        $query = $this->db->query($sql, $codigoCliente);
+        if ($query->num_rows() > 0) {
+            $cliente = $query->row();
+                $data = [
+                    'CODIGO' => $cliente->CODIGO,
+                    'CODIGO_CLIENTE' => $cliente->CODIGO,
+                    'NATUREZA' => $cliente->NATUREZA,
+                    'CGC' => $cliente->CGC,
+                    'INSCRICAO' => $cliente->INSCRICAO,
+                    'CPF' => $cliente->CPF,
+                    'RG' => $cliente->RG,
+                    'RAZAO_SOCIAL' => $cliente->RAZAO_SOCIAL,
+                    'NOME_FANTASIA' => $cliente->NOME_FANTASIA,
+                    'CEP' => $cliente->CEP,
+                    'ENDERECO' => $cliente->ENDERECO,
+                    'NUM_END_PRINCIPAL' => $cliente->NUM_END_PRINCIPAL,
+                    'BAIRRO' => $cliente->BAIRRO,
+                    'CIDADE' => $cliente->CIDADE,
+                    'ESTADO' => $cliente->ESTADO,
+                    'TELEFONE' => $cliente->TELEFONE,
+                    'CELULAR' => $cliente->CELULAR,
+                    'FAX' => $cliente->FAX,
+                    'CONTATO' => $cliente->CONTATO,
+                    'WEBSITE' => $cliente->WEBSITE,
+                    'TRANSPORTADORA' => $cliente->TRANSPORTADORA,
+                    'EMAIL' => $cliente->EMAIL,
+                    'OBS_CADASTRO' => $cliente->OBS_CADASTRO,
+                    'TRANSPORTADORA_NOME' => $cliente->TRANSPORTADORA_NOME,
+                    'CONSUMIDOR_FINAL' => $cliente->CONSUMIDOR_FINAL,
+                    'INSCRICAO' => $cliente->INSCRICAO,
+                    'DISP_ST' => $cliente->DISP_ST,
+                    'CODIGO_VENDEDOR' => $cliente->CODIGO_VENDEDOR,
+                    'NOME_VENDEDOR_INTERNO' => $cliente->NOME_VENDEDOR_INTERNO,
+                    'CONTRIBUINTE_ICMS' => $cliente->CONTRIBUINTE_ICMS,
+                    'LIMITE_CREDITO' => number_format($cliente->LIMITE_CREDITO, 2, ',', '.'),
+                    'OPTANTE_SIMPLES' => $cliente->OPTANTE_SIMPLES,
+                    'CODIGO_TRANSPORTADORA' => $cliente->CODIGO_TRANSPORTADORA,
+                    'RAZAO_SOCIAL_TRANSPORTADORA' => $cliente->RAZAO_SOCIAL_TRANSPORTADORA,
+                    'VENDEDOR_EXTERNO' => $cliente->VENDEDOR_EXTERNO,
+                    'NOME_VENDEDOR_EXTERNO' => $cliente->NOME_VENDEDOR_EXTERNO,
+                ];
+                
+                $vlr = $this->getLimiteCredito($codigoCliente);
+                
+                array_push($data, array('LIMITE_DISPONIVEL' => number_format(round($cliente->LIMITE_CREDITO, 2) - round($vlr, 2), 2, ',', '.')));
+
+            return $data;
+        } else {
+            return 0;
+        }
+    }
+    
+    public function getLimiteCredito($codigoCliente) {
+        $sql = "SELECT CODIGO, DIRETORIO FROM PAR_CASH WHERE ATIVO = 'S'";
+        $query = $this->db->query($sql);
+        $vlrTotal = 0;
+
+        foreach($query->result_array() as $diretorio) {
+            $sql2 = "SELECT ISNULL(SUM(C.VALOR), 0.00) AS PENDENCIA_ABERTA
+                    FROM " . $diretorio['DIRETORIO'] . ".dbo.CAD_PECR C
+                    WHERE
+                        C.CODIGODOCLIENTE = ?";
+            $query2 = $this->db->query($sql2, $codigoCliente);
+            $limite_disponivel = $query2->row();
+            $vlrTotal += round($limite_disponivel->PENDENCIA_ABERTA, 2);
+        }
+        return $vlrTotal;
+    }
+    
+    public function getByIdFinancial($codeClient) {
+        $sql = "(
+                SELECT C.NDODOCUMENTO, C.TIPO, C.DATADEVENCIMENTO, C.VALOR, C.REF_VENDA, 'Aberto' AS ABERTO_BAIXADO
+                FROM " . $this->session->userdata('DIRETORIO') . ".dbo.CAD_PECR C
+                WHERE
+                    C.CODIGODOCLIENTE = ?
+                ) UNION ALL
+                (
+                SELECT B.NDODOCUMENTO, B.TIPO, B.DATADEVENCIMENTO, B.VALOR, B.REF_VENDA, 'Pago' AS ABERTO_BAIXADO
+                FROM " . $this->session->userdata('DIRETORIO') . ".dbo.BX_PEREC B
+                WHERE
+                    B.CODIGODOCLIENTE = ?)";
+        
+        $query = $this->db->query($sql, array($codeClient, $codeClient));
+        
+        if ($query->num_rows() > 0) {
+            return $query->result_array();
+        } else {
+            return false;
+        }
+    }
+    
+    public function buscarVendedores($vendedor_interno = NULL, $tipo = 'I') {
+        $query = $this->db->query("SELECT 
+                                    V.CODIGO,
+                                    V.NOME
+                                FROM CAD_VEND V
+                                WHERE
+                                    (V.CODIGO LIKE '%{$vendedor_interno}%' OR V.NOME LIKE '%$vendedor_interno%') AND
+                                    V.SITUACAO = 'A' AND
+                                    V.ECOMMERCE = 'S' AND
+                                    V.TIPO = '{$tipo}'");
+        
+        $vendedores = $query->result_array();
+        foreach ($vendedores as $vendedore) {
+            $result['items'][] = array(
+                'id' => $vendedore['CODIGO'],
+                'nome_fantasia' => $vendedore['NOME']
+            );
+        }
+        return $result;
+    }
+    
+    public function getByIdMarketing($codeClient, $codigo, $data_inicial, $data_final) {
+        $cod_vendedor = $this->session->userdata('VENDEDOR');
+        
+        if ($codeClient != '') {
+            // consultar todos do cliente
+            $where = "T.CLIENTE = {$codeClient}";
+            if ($codigo != '') {
+                // consultar todos do cliente e filtrar um registro em questão
+                $where .= " AND T.CODIGO = {$codigo}";
+            }
+        } else {
+            // listar todos para visualizar os retornos do dia.
+//            $proximo_contato = date('Ymd');
+//            $proximo_contato = '20190730';
+            $where = "T.PROXIMO_CONTATO BETWEEN '{$data_inicial}' AND '{$data_final}' AND T.RETORNO = 'N'";
+        }
+        
+        $sql = "SELECT T.CLIENTE, C.NOME_FANTASIA, C.RAZAO_SOCIAL, T.DATA_CONTATO, T.PROXIMO_CONTATO, T.RETORNO, T.MOTIVO, T.DATA_LANCAMENTO, T.CONTATO, T.CODIGO, T.OBSERVACAO
+                FROM 
+                    TELEMARK T
+                JOIN
+                    CAD_CLIE C ON(T.CLIENTE = C.CODIGO)
+                WHERE 
+                    C.VENDEDOR_EXTERNO = ? AND
+                    $where
+                ORDER BY T.CODIGO DESC";
+        
+        $query = $this->db->query($sql, $cod_vendedor);
+        
+        if ($query->num_rows() > 0) {
+            $telemarketing = $query->result_array();
+            foreach ($telemarketing as $tele) {
+                $data_contato = date_create($tele['DATA_CONTATO']);
+                $proximo_contato = date_create($tele['PROXIMO_CONTATO']);
+                $data_lancamento = date_create($tele['DATA_LANCAMENTO']);
+                
+                if ($tele['MOTIVO'] == 'T') {
+                    $motivo = 'TROCA/DEVOLUÇÃO';
+                } else if ($tele['MOTIVO'] == 'C') {
+                    $motivo = 'CONTATO';
+                } else if ($tele['MOTIVO'] == 'R') {
+                    $motivo = 'RECLAMAÇÃO';
+                } else if ($tele['MOTIVO'] == 'S') {
+                    $motivo = 'SUGESTÃO';
+                } else if ($tele['MOTIVO'] == 'F') {
+                    $motivo = 'FINANCEIRO';
+                } else {
+                    $motivo = 'OUTROS';
+                }
+                
+                $data[] = array(
+                    'CLIENTE' => $tele['CLIENTE'],
+                    'NOME_FANTASIA' => $tele['NOME_FANTASIA'],
+                    'RAZAO_SOCIAL' => $tele['RAZAO_SOCIAL'],
+                    'DATA_CONTATO' => date_format($data_contato, 'd/m/Y'),
+                    'PROXIMO_CONTATO' => date_format($proximo_contato, 'd/m/Y'),
+                    'RETORNO' => $tele['RETORNO'],
+                    'MOTIVO' => $motivo,
+                    'DATA_LANCAMENTO' => date_format($data_lancamento, 'd/m/Y'),
+                    'CONTATO' => (empty($tele['CONTATO']) ? '' : $tele['CONTATO']),
+                    'CODIGO' => $tele['CODIGO'],
+                    'OBSERVACAO' => $tele['OBSERVACAO'],
+                    'TIPO_MOTIVO' => $tele['MOTIVO']
+                );
+            }
+            return $data;
+        } else {
+            return false;
+        }
+    }
+
+    public function inserirTelemarketing($dados) {
+        return $this->db->insert('TELEMARK', $dados);
+    }
+
+    public function updateTelemarketing($dados) {
+        $this->db->where('CODIGO', $dados['CODIGO']);
+        $this->db->where('CLIENTE', $dados['CLIENTE']);
+        $query = $this->db->update('TELEMARK', $dados);
+        return $query;
+    }
+    
+    public function buscaUltimoTlmk($cliente) {
+        $sql = "SELECT MAX(T.CODIGO) +1 AS CODIGO
+                FROM TELEMARK T
+                WHERE T.CLIENTE = ?";
+        
+        $query = $this->db->query($sql, $cliente);
+        
+        return $query->result_array();
+    }
+}

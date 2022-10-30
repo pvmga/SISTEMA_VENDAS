@@ -1,0 +1,668 @@
+<script type="text/javascript">
+    $(function () {
+        
+        preencherMascara();
+        /* Quando existir dados a ser alterado*/
+        var valorASerAlterado = $('#codigoInterno').val();
+        if (valorASerAlterado !== '') {
+            // preencher campo quando for realizar alterações
+            preencherCampos();            
+        }
+
+        /*busca cep*/
+        $('#cep').blur(function () {
+            var cep = $('#cep').val();
+            if (cep.length === 9) {
+                buscarCep(cep);
+            }
+        });
+
+        /*valida cliente*/
+        $('#cpf').blur(function () {
+            validarCpf()
+        });
+
+        /*valida cnpj*/
+        $('#cnpj').blur(function () {
+            validarCnpj();
+        });
+
+        $('#btnGravar').click(function () {
+            
+            // validação de campos
+            var validador = validarCadaCampo();
+            
+            // Inserir ou alterar registros.
+            if (validador !== false) {
+                inserirOuAlterarRegistro();
+            }
+        });
+        
+        function preencherMascara() {
+            $('#cpf').mask('000.000.000-00');
+            $('#cnpj').mask('00.000.000/0000-00');
+            $('#cep').mask('00000-000');
+            $('#telefone_fixo').mask('(00) 0000-0000');
+            $('#telefone_celular').mask('(00) 00000-0000');
+            $('#data_telemarketing_contato').mask("99/99/9999");
+            $('#data_telemarketing_proximo_contato').mask("99/99/9999");
+
+            $('.cpf').addClass('hidden');
+            $('.rg').addClass('hidden');
+            $('#tipoPessoa').change(function () {
+                alternarCampos();
+            });
+        }
+        
+        function buscarCep(cep) {
+            dialogSuccess('Buscando...');
+            $('#modal-success').modal('show');
+            $('#modal-success').unbind("click");
+            var request = $.ajax({
+                url: "http://viacep.com.br/ws/" + cep + "/json/",
+                method: "GET",
+                dataType: "json"
+            });
+
+            request.done(function (msg) {
+                $('#modal-success').modal('hide');
+                if (msg.erro === true) {
+                    dialogDanger('Cep não encontrado: ' + cep + '.');
+                    $('#modal-danger').modal('show');
+                }
+                var endereco = msg.logradouro;
+                $('input[name=endereco]').val(endereco.substr(0, 39));
+                $('input[name=bairro]').val(msg.bairro);
+                $('input[name=cidade]').val(msg.localidade);
+                $('input[name=uf]').val(msg.uf);
+                $('input[name=numero]').focus();
+            });
+
+            request.fail(function (jqXHR, textStatus) {
+                $('#modal-success').modal('hide');
+                dialogDanger("WebService viacep está temporariamente indisponível, erro: " + jqXHR);
+                $('#modal-danger').modal('show');
+            });
+        }
+        
+        function validarCpf() {
+            var cpf = $('#cpf').val();
+            if (cpf !== '') {
+                var tipoPessoa = $("#tipoPessoa option:selected").val();
+                var request = $.ajax({
+                    url: "<?= base_url('verificaCliente'); ?>",
+                    method: "POST",
+                    data: {cpf: cpf, tipoPessoa: tipoPessoa},
+                    dataType: "json"
+                });
+
+                request.done(function (result) {
+                    if (result.status == 'EX') {
+                        dialogWarning('Este CPF/CNPJ se encontra cadastrado sob o nome de ' + result.cliente + ' na carteira do vendedor ' + result.vendedor + '. Qualquer dúvida contate a matriz da empresa!')
+                        $('#modal-warning').modal('show');
+                        return false;
+                    }
+                });
+
+                request.fail(function (jqXHR, textStatus) {
+                    alert("Não foi possivel retornar os dados cpf, erro: " + textStatus);
+                });
+            }
+        }
+        
+        function validarCnpj() {
+            var cnpj = $('#cnpj').val();
+            if (cnpj !== '') {
+                var tipoPessoa = $("#tipoPessoa option:selected").val();
+                var request = $.ajax({
+                    url: "<?= base_url('verificaCliente'); ?>",
+                    method: "POST",
+                    data: {cnpj: cnpj, tipoPessoa: tipoPessoa},
+                    dataType: "json"
+                });
+
+                request.done(function (result) {
+                    if (result.status == 'EX') {
+                        dialogWarning('Este CPF/CNPJ se encontra cadastrado sob o nome de ' + result.cliente + ' na carteira do vendedor ' + result.vendedor + '. Qualquer dúvida contate a matriz da empresa!');
+                        $('#modal-warning').modal('show');
+                        return false;
+                    }
+                });
+
+                request.fail(function (jqXHR, textStatus) {
+                    alert("Não foi possivel retornar os dados cnpj, erro: " + textStatus);
+                });
+            }
+        }
+        
+        function inserirOuAlterarRegistro() {
+            var dados = [
+                $('#inscricao').val(), //0
+                $('#razao_social').val(), //1
+                $('#nome_fantasia').val(), //2
+                $('#cep').val(), //3
+                $('#endereco').val(), //4
+                $('#numero').val(), //5
+                $('#complemento').val(), //6
+                $('#bairro').val(), //7
+                $('#cidade').val(), //8
+                $('#uf').val(), //9
+                $('#telefone_fixo').val(), //10
+                $('#telefone_celular').val(), //11
+                $('#fax').val(), //12
+                $('#contato').val(), //13
+                $('#website').val(), //14
+                $('#email').val(), //15
+                $('#vendedor').val(), //16
+                $('#observacao').val(), //17
+                $("#transportadora option:selected").val(), //18
+                $("#tipoPessoa option:selected").val(), //19
+                $('#cnpj').val(), //20
+                $('#cpf').val(), //21
+                $('#rg').val(), //22
+                $('#codigoInterno').val(), //23
+                $("#vendedorInterno option:selected").val(), //24
+            ]
+
+            var request = $.ajax({
+                url: "<?= base_url('inserirCliente'); ?>",
+                method: "POST",
+                data: {dados: dados},
+                dataType: "json"
+            });
+
+            request.done(function (msg) {
+                if (msg === 'true') {
+                    dialogSuccess('Operação realizada com sucesso !');
+                    $('#modal-success').modal('show');
+                    $('#modal-success').unbind("click");
+                    setTimeout(function () {
+                        location.href = "<?= base_url('listagemCliente'); ?>";
+                    }, 1000);
+                }
+            });
+
+            request.fail(function (jqXHR, textStatus) {
+                dialogDanger('#' + textStatus + ': ' + jqXHR + '. Não foi possivel realizar a inserção, entre em contato com o suporte ou tente novamente !');
+                $('#modal-danger').modal('show');
+            });
+        }
+        
+        function preencherCampos() {
+//            dialogSuccess('Buscando...');
+//            $('#modal-success').modal('show');
+//            $('#modal-success').unbind("click");
+            
+            var request = $.ajax({
+                url: "<?= base_url('buscaClientePreencheFormulario'); ?>",
+                method: "POST",
+                data: {codigo: valorASerAlterado},
+                dataType: "json"
+            });
+
+            request.done(function (msg) {
+//                console.log(msg);
+//                $('#modal-success').modal('hide');
+                
+                $("#tipoPessoa").val(msg.NATUREZA);
+                $("#cnpj").val(msg.CGC);
+                $("#cpf").val(msg.CPF);
+                $("#rg").val(msg.RG);
+                $("#inscricao").val(msg.INSCRICAO);
+                $("#razao_social").val(msg.RAZAO_SOCIAL);
+                $("#nome_fantasia").val(msg.NOME_FANTASIA);
+                $("#cep").val(msg.CEP);
+                $("#endereco").val(msg.ENDERECO);
+                $("#numero").val(msg.NUM_END_PRINCIPAL);
+                $("#complemento").val(msg.COMP_ENDERECO);
+                $("#bairro").val(msg.BAIRRO);
+                $("#cidade").val(msg.CIDADE);
+                $("#uf").val(msg.ESTADO);
+                $("#telefone_fixo").val(msg.TELEFONE);
+                $("#telefone_celular").val(msg.CELULAR);
+                $("#fax").val(msg.FAX);
+                $("#contato").val(msg.CONTATO);
+                $("#website").val(msg.WEBSITE);
+                
+                // Utilizado desta forma para se adequar ao formato do select2
+                $("#transportadora option:selected").val(msg.TRANSPORTADORA);
+                $("#alterado").text(msg.TRANSPORTADORA + ' - ' + msg.TRANSPORTADORA_NOME);
+
+                $("#vendedorInterno option:selected").val(msg.CODIGO_VENDEDOR);
+                $("#alterado_vendedor").text(msg.CODIGO_VENDEDOR + ' - ' + msg.NOME_VENDEDOR_INTERNO);
+                
+                $("#email").val(msg.EMAIL);
+                $("#observacao").val(msg.OBS_CADASTRO);
+                
+                $("#limite_credito").val(msg.LIMITE_CREDITO);
+                $('#limite_disponivel').val(msg[0].LIMITE_DISPONIVEL);
+                // mostra campo cpf/rg ou cnpj/inscricao
+                alternarCampos();
+            });
+
+            request.fail(function (jqXHR, textStatus) {
+                dialogDanger('#' + textStatus + ': ' + jqXHR + '. Não foi possivel realizar a alteração, entre em contato com o suporte ou tente novamente !');
+                $('#modal-danger').modal('show');
+            });
+        }
+
+        function validadarDados(validar) {
+            document.querySelector(validar).textContent = 'Campo obrigatório*';
+        }
+        
+        function alternarCampos() {
+            var tipoPessoa = $("#tipoPessoa option:selected").val();
+
+            if (tipoPessoa === 'F') {
+                $('.cnpj').addClass('hidden');
+                $('.inscricao').addClass('hidden');
+                $('.cpf').removeClass('hidden');
+                $('.rg').removeClass('hidden');
+            } else {
+                $('.cnpj').removeClass('hidden');
+                $('.inscricao').removeClass('hidden');
+                $('.cpf').addClass('hidden');
+                $('.rg').addClass('hidden');
+            }
+        }
+        
+        function transportadora() {
+            $(".js-example-data-ajax").select2({
+                ajax: {
+                    url: "<?php echo base_url("listaTransportadora"); ?>",
+                    dataType: 'json',
+                    delay: 300,
+                    data: function (params) {
+                        return {
+                            q: params.term,
+                            page: params.page
+                        };
+                    },
+                    processResults: function (data, params) {
+                        params.page = params.page || 1;
+                        return {
+                            results: data.items,
+                            pagination: {
+                                more: (params.page * 30) < data.total_count
+                            }
+                        };
+                    },
+                    cache: true
+                },
+                escapeMarkup: function (markup) {
+                    return markup;
+                },
+                minimumInputLength: 0,
+                templateResult: formatRepo,
+                templateSelection: formatRepoSelection
+            });
+
+            function formatRepo(repo) {
+                if (repo.loading) {
+                    return repo.text;
+                }
+
+                var markup = '<div>' + repo.id + ' - ' + repo.nome_fantasia + '</div>';
+
+                return markup;
+            }
+
+            function formatRepoSelection(repo) {
+                return '<option value="' + repo.id + '" id="alterado">' + repo.id + ' - ' + repo.nome_fantasia + '</option>';
+            }
+        }
+        transportadora();
+        
+        function vendedorInterno() {
+            $(".js-vendedor-interno").select2({
+                ajax: {
+                    url: "<?php echo base_url("listaVendedor"); ?>",
+                    dataType: 'json',
+                    delay: 300,
+                    data: function (params) {
+                        return {
+                            q: params.term,
+                            page: params.page
+                        };
+                    },
+                    processResults: function (data, params) {
+                        params.page = params.page || 1;
+                        return {
+                            results: data.items,
+                            pagination: {
+                                more: (params.page * 30) < data.total_count
+                            }
+                        };
+                    },
+                    cache: true
+                },
+                escapeMarkup: function (markup) {
+                    return markup;
+                },
+                minimumInputLength: 0,
+                templateResult: formatRepo,
+                templateSelection: formatRepoSelection
+            });
+
+            function formatRepo(repo) {
+                if (repo.loading) {
+                    return repo.text;
+                }
+
+                var markup = '<div>' + repo.id + ' - ' + repo.nome_fantasia + '</div>';
+
+                return markup;
+            }
+
+            function formatRepoSelection(repo) {
+                return '<option value="' + repo.id + '" id="alterado_vendedor">' + repo.id + ' - ' + repo.nome_fantasia + '</option>';
+            }
+        }
+        vendedorInterno();
+
+        function validarCadaCampo() {
+            var validador = '';
+            // VALIDAÇÃO DE CADA CAMPO DO FORMULÁRIO.
+            if ($('#cnpj').val() === '' && $("#tipoPessoa option:selected").val() === 'J') {
+
+                validadarDados('#validadorCNPJ');
+                $('#cnpj').focus();
+                validador = false;
+            }
+
+            if ($('#inscricao').val() === '' && $("#tipoPessoa option:selected").val() === 'J') {
+
+                validadarDados('#validadorINSCRICAO');
+                $('#inscricao').focus();
+                validador = false;
+            }
+
+            if ($('#cpf').val() === '' && $("#tipoPessoa option:selected").val() === 'F') {
+
+                validadarDados('#validadorCPF');
+                $('#cpf').focus();
+                validador = false;
+            }
+
+            if ($('#rg').val() === '' && $("#tipoPessoa option:selected").val() === 'F') {
+
+                validadarDados('#validadorRG');
+                $('#rg').focus();
+                validador = false;
+            }
+
+            if ($('#razao_social').val() === '') {
+
+                validadarDados('#validadorRAZAO');
+                $('#razao_social').focus();
+                validador = false;
+            }
+
+            if ($('#nome_fantasia').val() === '') {
+
+                validadarDados('#validadorFANTASIA');
+                $('#nome_fantasia').focus();
+                validador = false;
+            }
+
+            if (($('#cep').val()).length < 9) {
+
+                validadarDados('#validadorCEP');
+                $('#cep').focus();
+                validador = false;
+            }
+
+            if ($('#endereco').val() === '') {
+
+                validadarDados('#validadorENDERECO');
+                $('#endereco').focus();
+                validador = false;
+            }
+
+            if ($('#numero').val() === '') {
+
+                validadarDados('#validadorNUMERO');
+                $('#numero').focus();
+                validador = false;
+            }
+
+            if ($('#bairro').val() === '') {
+
+                validadarDados('#validadorBAIRRO');
+                $('#bairro').focus();
+
+            }
+
+            if ($('#cidade').val() === '') {
+
+                validadarDados('#validadorCIDADE');
+                $('#cidade').focus();
+                validador = false;
+            }
+
+            if ($('#uf').val() === '') {
+
+                validadarDados('#validadorUF');
+                $('#uf').focus();
+                validador = false;
+            }
+
+            if ($('#telefone_fixo').val() === '') {
+
+                validadarDados('#validadorTELEFONE_FIXO');
+                $('#telefone_fixo').focus();
+                validador = false;
+            }
+
+            if ($('#contato').val() === '') {
+
+                validadarDados('#validadorCONTATO');
+                $('#contato').focus();
+                validador = false;
+            }
+
+//            if ($("#transportadora option:selected").val() === '' || $("#transportadora option:selected").val() === '0') {
+//
+//                validadarDados('#validadorTRANSPORTADORA');
+//                $("#transportadora option:selected").focus();
+//                validador = false;
+//            }
+            
+            if ($("#vendedorInterno option:selected").val() === '' || $("#vendedorInterno option:selected").val() === '0') {
+
+                validadarDados('#validadorVENDEDOR_INTERNO');
+                $("#transportadora option:selected").focus();
+                validador = false;
+            }
+
+            if ($('#email').val() === '') {
+
+                validadarDados('#validadorEMAIL');
+                $('#email').focus();
+                validador = false;
+            }
+            
+            return validador;
+        }
+        // Para escrever no option.
+        $("#alterado").text('Selecione...');
+        $("#alterado_vendedor").text('Selecione...');
+    });
+    
+        // DUAS FORMAS DE LISTAR
+        // 1- LISTAGEM DE CLIENTE UTILIZANDO BOTÃO TELEMARKETING
+        if ($('#telemarketing_uri').val() === 'telemarketing') {
+            var codeClient = $('#codigoInterno').val();
+            setTimeout(function() {
+                getByIdClientMarketing(codeClient);
+            }, 200);
+        }
+        // 2- ALTERAR CADASTRO UTILIZANDO O TAB.
+        $('#telemarketing').click(function() {
+            var codeClient = $('#codigoInterno').val();
+            setTimeout(function() {
+                getByIdClientMarketing(codeClient);
+            }, 200);
+        });
+        
+        
+        function getByIdClientMarketing(codeClient) {
+            $("#tabela_telemarketing").html("");
+            var request = $.ajax({
+                url: "<?= base_url('getByIdClientMarketing'); ?>",
+                method: "POST",
+                data: { codeClient: codeClient, codigo: '', data_inicial: '', data_final: '' },
+                dataType: "json"
+            });
+
+            request.done(function (response) {
+
+                $.each(response.dados, function (key, value) {
+                    var color_retorno = '';
+                    if (value.RETORNO === 'N') {
+                        color_retorno = 'red';
+                    }
+                    var data_proximo;
+                    if (value.PROXIMO_CONTATO === '01/01/1900') {
+                        data_proximo = '';
+                    } else {
+                        data_proximo = value.PROXIMO_CONTATO;
+                    } 
+                    $("#tabela_telemarketing").append('<tr><td>' + value.CLIENTE +'-'+ value.NOME_FANTASIA + '</td><td>' + value.DATA_CONTATO + '</td><td>' + value.CONTATO + '</td><td>' + data_proximo + '</td><td style="color: '+color_retorno+'; ">' + value.RETORNO + '</td><td>' + value.MOTIVO + '</td><td><button class="btn btn-info btn-xs" onclick="visualizarTelemarketing('+value.CLIENTE+','+value.CODIGO+');">Visualizar</button></td></tr>');
+                });
+            });
+
+            request.fail(function (jqXHR, textStatus) {
+                $('#modal-success').modal('hide');
+                console.log(jqXHR);
+                dialogDanger("getByIdClientFinancial - erro: " + jqXHR);
+                $('#modal-danger').modal('show');
+            });
+        }
+        
+        function visualizarTelemarketing(cliente, codigo) {
+            var request = $.ajax({
+                url: "<?= base_url('getByIdClientMarketing'); ?>",
+                method: "POST",
+                data: { codeClient: cliente, codigo: codigo, data_inicial: '', data_final: '' },
+                dataType: "json"
+            });
+
+            request.done(function (response) {
+                console.log(response);
+                $('#modal-telemarketing').modal('show');
+                setTimeout(function() {
+                    var dados = response.dados[0];
+                    $('#codigo_telemarketing').val(codigo);
+                    $('#data_telemarketing_contato').val(dados.DATA_CONTATO);
+                    if (dados.PROXIMO_CONTATO === '01/01/1900') {
+                        $('#data_telemarketing_proximo_contato').val('');
+                    } else {
+                        $('#data_telemarketing_proximo_contato').val(dados.PROXIMO_CONTATO);
+                    }
+                    $('#contato_telemarketing').val(dados.CONTATO);
+                    $('#observacao_telemarketing').val(dados.OBSERVACAO);
+                    
+                    if (dados.RETORNO === 'S') {
+                        $("#check_retorno_efetuado").attr("checked", "checked")
+                    } else {
+                        $("#check_retorno_efetuado").removeAttr("checked");
+                    }
+                    
+                    var radios = document.getElementsByName("optionsRadios");
+                    if (dados.TIPO_MOTIVO === 'C') {
+                        radios[0].checked = true;
+                    } else if (dados.TIPO_MOTIVO === 'T') {
+                        radios[1].checked = true;
+                    } else if (dados.TIPO_MOTIVO === 'R') {
+                        radios[2].checked = true;
+                    } else if (dados.TIPO_MOTIVO === 'F') {
+                        radios[3].checked = true;
+                    } else if (dados.TIPO_MOTIVO === 'S') {
+                        radios[4].checked = true;
+                    } else {
+                        radios[5].checked = true;
+                    }
+                }, 500);
+            });
+
+            request.fail(function (jqXHR, textStatus) {
+                $('#modal-success').modal('hide');
+                console.log(jqXHR);
+                dialogDanger("getByIdClientFinancial - erro: " + jqXHR);
+                $('#modal-danger').modal('show');
+            });
+        }
+        /* ADAPTAÇÃO TABAJARA*/
+//        $('#modal-telemarketing').modal('show');
+//        setTimeout(function() {
+//            $('#modal-telemarketing').modal('hide');
+//        }, 50);
+        /* /ADAPTAÇÃO TABAJARA*/
+        
+        function teste() {
+            $('#codigo_telemarketing').val('');
+            $('#codigo_telemarketing').val('');
+            $('#data_telemarketing_contato').val('');
+            $('#data_telemarketing_proximo_contato').val('');
+            $('#contato_telemarketing').val('');
+            $('#observacao_telemarketing').val('');
+            $("#check_retorno_efetuado").removeAttr("checked");
+            var radios = document.getElementsByName("optionsRadios");
+            radios[0].checked = true;
+            $('#modal-telemarketing').modal('show');
+        }
+        
+        $('#gravarTelemarketing').click(function() {
+            var data_telemarketing_contato = ($('#data_telemarketing_contato').val().replace('/', '')).replace('/', '');
+            var data_telemarketing_proximo_contato = ($('#data_telemarketing_proximo_contato').val().replace('/', '')).replace('/', '');
+            var codigoInterno = $('#codigoInterno').val();
+            var contato_telemarketing = $('#contato_telemarketing').val();
+            var observacao_telemarketing = $('#observacao_telemarketing').val();
+            var vendedor_telemarketing = $('#vendedor_telemarketing').val();
+            var motivos = $("input[name='optionsRadios']:checked").val();
+            var retorno = $("#check_retorno_efetuado").is(':checked');
+            var codigoTelemarketing = $('#codigo_telemarketing').val();
+            
+            if ($('#contato_telemarketing').val() === '') {
+                alert('Contato não pode ser vazio');
+                return false;
+            }
+
+            var request = $.ajax({
+                url: "<?= base_url('salvarTelemarketing'); ?>",
+                method: "POST",
+                data: {
+                    data_telemarketing_contato: data_telemarketing_contato,
+                    data_telemarketing_proximo_contato: data_telemarketing_proximo_contato,
+                    contato_telemarketing: contato_telemarketing,
+                    observacao_telemarketing: observacao_telemarketing,
+                    vendedor_telemarketing: vendedor_telemarketing,
+                    motivos: motivos,
+                    retorno: retorno,
+                    cliente: codigoInterno,
+                    codigoTelemarketing: codigoTelemarketing
+                },
+                dataType: "json"
+            });
+
+            request.done(function (response) {
+                console.log(response);
+                if (response === true) {
+                    alert('Salvo com sucesso');
+                    $('#modal-telemarketing').modal('hide');
+                    location.reload();
+//                    getByIdClientMarketing(codigoInterno);
+                }
+            
+            });
+
+            request.fail(function (jqXHR, textStatus) {
+                $('#modal-telemarketing').modal('hide');
+                console.log(jqXHR);
+                dialogDanger("salvarTelemarketing - erro: " + jqXHR);
+                $('#modal-danger').modal('show');
+            });
+            
+        });
+</script>

@@ -1,0 +1,197 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Login extends MY_Controller {
+
+    public function __construct() {
+        parent::__construct();
+    }
+
+    public function index() {
+
+        $data['title'] = 'ADMIN | Login';
+        
+        $this->load->model('parametros_models');
+        $data['parametros'] = $this->parametros_models->getEmpresas();
+        
+        $this->load->view('telas/view_login', $data);
+        $this->load->view('ajax/validaLogin');
+    }
+    
+    function calculaPermissao($valorPermissao, $posicaoPermissao, $posicaoMaxima = 29) {
+        for ($i = $posicaoMaxima; $i >= $posicaoPermissao; $i--) {
+
+            $potencia = round( pow(2,$i) );         //calcula potencia, ex: posicao 11 = 2048
+
+            if ($valorPermissao >= $potencia) {
+                $valorPermissao -= $potencia;       //diminui o valor atual
+
+                if ( $i == $posicaoPermissao ) {
+                    return true;
+                }
+            }
+        }
+        return 0;
+    }
+
+    public function validaLogin() {
+
+        $this->load->model('usuario_models');
+        
+        // VALIDAR PERMISSÃO DE ACESSAR EMPRESA OU NÃO;
+        $usuario = $this->usuario_models->get_login($this->input->post('usuario'), $this->input->post('senha'));
+
+        if ($usuario) {
+            echo json_encode($usuario['PERM_EMPRESA']);
+        } else {
+            echo '0';
+        }
+    }
+    
+    public function retornaFilialPermitidas() {
+        
+        $this->load->model('parametros_models');
+        $parametros = $this->parametros_models->getEmpresas();
+        
+        $dadosUser = $this->input->post('dadosUsuario');
+        $dadosUserJson = json_decode($dadosUser, true);
+        
+        $empresasPermitidas = array();
+        for($x=0; $x<count($parametros); $x++) {
+            $todasEmpresasPermitidas = $this->calculaPermissao($dadosUserJson, $parametros[$x]['CODIGO']);
+            if ($todasEmpresasPermitidas == 1) {
+                
+                array_push($empresasPermitidas, array('CODIGO' => $parametros[$x]['CODIGO'], 'NOME_FANTASIA' => $parametros[$x]['NOME_FANTASIA']));
+            }
+        }
+
+        echo json_encode(($empresasPermitidas));
+    }
+    
+    public function criaSession() {
+        
+        $this->load->model('usuario_models');
+        $data['usuario'] = $this->usuario_models->get_login($this->input->post('usuario'), $this->input->post('senha'));
+
+        $this->load->model('parametros_models');
+        $data['parametros'] = $this->parametros_models->parametrosLogin($this->input->post('codigoEmpresa'));
+        $decimal = ($data['parametros']['CASAS_DECIMAIS_VENDA'] == 'S') ? 2 : 3;
+
+        $sessaoUsuario = array(
+            'CODIGO_EMPRESA' => $this->input->post('codigoEmpresa'),
+            // Futuramente não será mais necessário utitlizar o codigo do usuário na sessão, pois vamos guardadar as permissões na sessão.
+            'CODIGO' => $data['usuario']['CODIGO'],
+            'NOME' => $data['usuario']['NOME'],
+            'APELIDO' => $data['usuario']['APELIDO'],
+            'VENDEDOR' => $data['usuario']['VENDEDOR'],
+            'SENHA' => $data['usuario']['SENHA'],
+            'ESTADO_VENDEDOR' => $data['usuario']['ESTADO'],
+            'EMAIL_VENDEDOR' => $data['usuario']['EMAIL'],
+            'VISUALIZAR_VENDAS' => $data['usuario']['VISUALIZAR_VENDAS'],
+
+            'ENDERECO' => $data['usuario']['ENDERECO'],
+            'CIDADE' => $data['usuario']['CIDADE'],
+            'BAIRRO' => $data['usuario']['BAIRRO'],
+            'OBSERVACOES' => $data['usuario']['OBSERVACOES'],
+            'TELEFONE' => $data['usuario']['TELEFONE'],
+            'CELULAR' => $data['usuario']['CELULAR'],
+            'NOME_VENDEDOR' => $data['usuario']['NOME_VENDEDOR'],
+
+            'ONLINE_VIS_COMISSAO' => $data['parametros']['ONLINE_VIS_COMISSAO'],
+            'ONLINE_LISTA_PRECOS' => $data['parametros']['ONLINE_LISTA_PRECOS'],
+            'ONLINE_UTIL_AGENDA' => $data['parametros']['ONLINE_UTIL_AGENDA'],
+            'ONLINE_CAD_CLIENTES' => $data['parametros']['ONLINE_CAD_CLIENTES'],
+            'ONLINE_VIS_CLIENTES' => $data['parametros']['ONLINE_VIS_CLIENTES'],
+            'CASAS_DECIMAIS_VENDA' => $decimal,
+            'ESTADO_EMPRESA' => $data['parametros']['ESTADO'],
+            'CALC_IMPOSTOS_NF' => $data['parametros']['CALC_IMPOSTOS_NF'],
+            'ONLINE_VENDER_CLIENTE_BLOQ' => $data['parametros']['ONLINE_VENDER_CLIENTE_BLOQ'],
+            'ONLINE_PERM_DIG_DESCONTO' => $data['parametros']['ONLINE_PERM_DIG_DESCONTO'],
+            'ONLINE_PERM_ALT_PRECOS' => $data['parametros']['ONLINE_PERM_ALT_PRECOS'],
+            'ONLINE_ESTOQUE' => $data['parametros']['ONLINE_ESTOQUE'],
+            'DESC_IPI_VENDA' => $data['parametros']['DESC_IPI_VENDA'],
+            'COD_EMPRESA' => $data['parametros']['COD_EMPRESA'],
+            'NOME_FANTASIA' => $data['parametros']['NOME_FANTASIA'],
+            'RAZAO_SOCIAL' => $data['parametros']['RAZAO_SOCIAL'],
+            'DIRETORIO' => $data['parametros']['DIRETORIO'],
+            'DATABASE_INC_MOV' => (empty($data['parametros']['DATABASE_INC_MOV'])) ? $data['parametros']['DIRETORIO'] : $data['parametros']['DATABASE_INC_MOV'],
+
+            'ONLINE_NOME_EMAIL_USUARIO' => $data['parametros']['ONLINE_NOME_EMAIL_USUARIO'],
+            'ONLINE_PORT_SMTP' => $data['parametros']['ONLINE_PORT_SMTP'],
+            'ONLINE_SENHA_EMAIL_USUARIO' => $data['parametros']['ONLINE_SENHA_EMAIL_USUARIO'],
+            'ONLINE_USER_SMTP' => $data['parametros']['ONLINE_USER_SMTP'],
+            'ONLINE_SERVER_SMTP_USUARIO' => $data['parametros']['ONLINE_SERVER_SMTP_USUARIO'],
+
+            'EMAIL_RESPONSAVEL' => $data['parametros']['EMAIL'],
+            'TRANSP_PADRAO' => $data['parametros']['TRANSP_PADRAO'],
+            'COD_CONDPGTO_PADRAO' => $data['parametros']['COD_CONDPGTO_PADRAO'],
+            'COD_CONDPGTO_PADRAO_PERC' => number_format($data['parametros']['ACRESCIMO'], 2, ',', '.') . '%',
+            'DESCONTO_MAXIMO' => $data['parametros']['DESCONTO_MAXIMO'],
+            'ONLINE_DESC_MAX_VERIF' => $data['parametros']['ONLINE_DESC_MAX_VERIF'],
+            'ONLINE_COD_VEND_INTERNO_PADRAO' => $data['parametros']['ONLINE_COD_VEND_INTERNO_PADRAO'],
+
+            'ENDERECO_RESPONSAVEL' => $data['parametros']['ENDERECO'],
+            'NUMERO_END_RESPONSAVEL' => $data['parametros']['NUMERO_END'],
+            'CIDADE_RESPONSAVEL' => $data['parametros']['CIDADE'],
+            'ESTADO_RESPONSAVEL' => $data['parametros']['ESTADO'],
+            'TELEFONE_RESPONSAVEL' => $data['parametros']['TELEFONE'],
+            'FRETE_PADRAO' => $data['parametros']['FRETE_PADRAO'],
+
+            'LOGOMARCA' => $data['parametros']['LOGOMARCA'],
+            'LOGO_CATALOGO' => $data['parametros']['LOGO_CATALOGO'],
+            'CALC_RENTABILIDADE' => $data['parametros']['CALC_RENTABILIDADE'],
+
+
+            'RAZAO_SOCIAL_PEDIDO' => $data['parametros']['RAZAO_SOCIAL_PEDIDO'],
+            'TELEFONE_PEDIDO' => $data['parametros']['TELEFONE_PEDIDO'],
+            'FAX_PEDIDO' => $data['parametros']['FAX_PEDIDO'],
+            'CEP_PEDIDO' => $data['parametros']['CEP_PEDIDO'],
+            'ENDERECO_PEDIDO' => $data['parametros']['ENDERECO_PEDIDO'],
+            'NUMERO_END_PEDIDO' => $data['parametros']['NUMERO_END_PEDIDO'],
+
+            'COMPLEMENTO_END_PEDIDO' => $data['parametros']['COMPLEMENTO_END_PEDIDO'],
+            'BAIRRO_PEDIDO' => $data['parametros']['BAIRRO_PEDIDO'],
+            'CIDADE_PEDIDO' => $data['parametros']['CIDADE_PEDIDO'],
+            'ESTADO_PEDIDO' => $data['parametros']['ESTADO_PEDIDO'],
+            'EMAIL_PEDIDO' => $data['parametros']['EMAIL_PEDIDO'],
+            'META_VENDA_APARTIR_DIA' => $data['parametros']['META_VENDA_APARTIR_DIA'],
+            'VEND_VISUALIZA_VENDAS' => $data['parametros']['VEND_VISUALIZA_VENDAS'],
+        );
+        $this->session->set_userdata($sessaoUsuario);
+        echo '1';
+    }
+
+    public function perfil() {
+        $data['title'] = 'ADMIN | Perfil';
+        $data['active'] = 'perfilUsuario';
+        
+        $this->load->model('vendas_models');
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('template/modal');
+        $this->load->view('telas/view_perfil');
+        $this->load->view('template/footer');
+        $this->load->view('ajax/perfil');
+    }
+
+    public function logout() {
+        $this->session->sess_destroy();
+        redirect('login');
+    }
+    
+    public function notFound() {
+        $data['title'] = 'ADMIN | 404';
+        
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('telas/view_404');
+        $this->load->view('template/footer');
+    }
+
+}

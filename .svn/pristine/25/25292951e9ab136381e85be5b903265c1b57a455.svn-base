@@ -1,0 +1,125 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Dashboard extends MY_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        if($this->session->userdata()['CODIGO'] == false)
+            redirect('login');
+    }
+
+    public function index() {
+        
+        $data['title'] = 'ADMIN | Dashboard';
+        $data['active'] = 'dashboard';
+        
+        $this->load->model('vendas_models');
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+        
+        $data['novidades'] = $this->getNovidades();
+
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('template/modal');
+        $this->load->view('telas/view_dashboard');
+        $this->load->view('template/footer');
+        $this->load->view('ajax/dashboard');
+    }
+    
+    public function telemarketing() {
+        
+        $data['title'] = 'ADMIN | Telemarketing';
+        $data['active'] = 'dashboard';
+
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('template/modal');
+        $this->load->view('telas/view_telemarketing');
+        $this->load->view('template/footer');
+        $this->load->view('ajax/telemarketing');
+    }
+    
+    public function manualSistema() {
+        
+        $data['title'] = 'ADMIN | Manual Sistema';
+        $data['active'] = 'manualSistema';
+
+        $this->load->view('template/header', $data);
+        $this->load->view('template/navbar');
+        $this->load->view('template/sidebar');
+        $this->load->view('telas/view_manual');
+        $this->load->view('template/footer');
+    }
+    
+    public function alimentarWidGetsAjax() {
+        
+        $onlineVisClientes = $this->session->userdata['ONLINE_VIS_CLIENTES'];
+        $vendedor = $this->session->userdata()['VENDEDOR'];
+        $usuarioVisualizarVendas = $this->session->userdata()['VISUALIZAR_VENDAS'];
+
+        $this->load->model('clientes_models');
+        $retorno_clientes = $this->clientes_models->listagemTelaClienteAjax($vendedor, $onlineVisClientes, $usuarioVisualizarVendas, 'T');
+
+        $this->load->model('vendas_models');
+        $orcamentos = $this->vendas_models->getCountSales($vendedor, date('Ymd'), 'O');
+        $novas_vendas = $this->vendas_models->getCountSales($vendedor, date('Ymd'), 'N');
+        $todas_vendas = $this->vendas_models->getCountSales($vendedor, date('Ymd'), 'S');
+        
+        echo json_encode(array("novas_vendas" => count($novas_vendas['data']), "todas_vendas" => count($todas_vendas['data']), "todos_clientes" => count($retorno_clientes['data']), "orcamentos" => count($orcamentos['data'])));
+    }
+    
+    public function graficoResumo() {
+        $this->load->model('vendas_models');
+        $data_inicial = date('Ym', strtotime('-7 month'));
+        $data_final = date('Ym');
+        $vendedor_ext = $this->session->userdata('VENDEDOR');
+        $retorno = $this->vendas_models->graficoResumo($data_inicial, $data_final, $vendedor_ext);
+        
+        echo json_encode($retorno);
+    }
+    
+    public function metaVendas() {
+        $this->load->model('vendas_models');
+        $data = date('Ym');
+        $vendedor = $this->session->userdata('VENDEDOR');
+        $metasVendas = $this->vendas_models->metavendas($data, $vendedor);
+//            echo json_encode();
+//            exit();
+        $total_meta = isset($metasVendas[0]['VALOR']) ? $metasVendas[0]['VALOR'] : 0;
+        $total_venda = isset($metasVendas[1]['VALOR']) ? $metasVendas[1]['VALOR'] : 0;
+
+        if (date('m') == 1) {
+            $mes = 'Janeiro';
+        } else if (date('m') == '2') {
+            $mes = 'Fevereiro';
+        } else if (date('m') == '3') {
+            $mes = 'Março';
+        } else if (date('m') == '4') {
+            $mes = 'Abril';
+        } else if (date('m') == '5') {
+            $mes = 'Maio';
+        } else if (date('m') == '6') {
+            $mes = 'Junho';
+        } else if (date('m') == '7') {
+            $mes = 'Julho';
+        } else if (date('m') == '8') {
+            $mes = 'Agosto';
+        } else if (date('m') == '9') {
+            $mes = 'Setembro';
+        } else if (date('m') == '10') {
+            $mes = 'Outubro';
+        } else if (date('m') == '11') {
+            $mes = 'Novembro';
+        } else {
+            $mes = 'Dezembro';
+        }
+
+        echo json_encode(array('total_venda' => $total_venda, 'total_meta' => $total_meta, 'mes' => $mes));
+    }
+
+}
